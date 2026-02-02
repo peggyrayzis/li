@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { type ParsedLinkedInUrl, parseLinkedInUrl } from "../../src/lib/url-parser.js";
+import {
+	type ParsedLinkedInUrl,
+	extractIdFromUrn,
+	parseLinkedInUrl,
+} from "../../src/lib/url-parser.js";
 
 describe("url-parser", () => {
 	describe("parseLinkedInUrl", () => {
@@ -411,6 +415,38 @@ describe("url-parser", () => {
 			expect(post.type).toBe("post");
 			expect(company.type).toBe("company");
 			expect(job.type).toBe("job");
+		});
+	});
+
+	describe("extractIdFromUrn", () => {
+		it("extracts ID from invitation URN", () => {
+			const result = extractIdFromUrn("urn:li:fsd_invitation:INV123");
+			expect(result).toBe("INV123");
+		});
+
+		it("extracts ID from conversation URN", () => {
+			const result = extractIdFromUrn("urn:li:conversation:123456789");
+			expect(result).toBe("123456789");
+		});
+
+		it("extracts ID from profile URN", () => {
+			const result = extractIdFromUrn("urn:li:fsd_profile:ACoAABcd1234");
+			expect(result).toBe("ACoAABcd1234");
+		});
+
+		it("returns plain ID unchanged", () => {
+			const result = extractIdFromUrn("INV123");
+			expect(result).toBe("INV123");
+		});
+
+		it("handles numeric ID", () => {
+			const result = extractIdFromUrn("123456");
+			expect(result).toBe("123456");
+		});
+
+		it("handles URN with special characters in ID", () => {
+			const result = extractIdFromUrn("urn:li:member:ACoAAA-test_123");
+			expect(result).toBe("ACoAAA-test_123");
 		});
 	});
 });

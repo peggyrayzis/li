@@ -145,3 +145,22 @@ function parseUrl(urlString: string): ParsedLinkedInUrl | null {
 
 	return null;
 }
+
+/**
+ * Extract the ID portion from a LinkedIn URN.
+ *
+ * @param urn - A LinkedIn URN or plain ID
+ * @returns The ID portion of the URN, or the input if not a URN
+ *
+ * @example
+ * extractIdFromUrn("urn:li:fsd_invitation:INV123") // "INV123"
+ * extractIdFromUrn("urn:li:conversation:123456") // "123456"
+ * extractIdFromUrn("plain-id") // "plain-id"
+ */
+export function extractIdFromUrn(urn: string): string {
+	if (urn.startsWith("urn:li:")) {
+		const parts = urn.split(":");
+		return parts[parts.length - 1];
+	}
+	return urn;
+}

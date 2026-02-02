@@ -11,6 +11,7 @@ import { LinkedInClient } from "../lib/client.js";
 import endpoints from "../lib/endpoints.json" with { type: "json" };
 import { parseInvitation } from "../lib/parser.js";
 import type { NormalizedInvitation } from "../lib/types.js";
+import { extractIdFromUrn } from "../lib/url-parser.js";
 import { formatInvitation } from "../output/human.js";
 import { formatJson } from "../output/json.js";
 
@@ -35,18 +36,6 @@ interface ListInvitesResult {
 interface AcceptInviteResult {
 	success: boolean;
 	invitationId: string;
-}
-
-/**
- * Extract the invitation ID from a URN.
- */
-function extractIdFromUrn(urn: string): string {
-	// Handle URN format: urn:li:fsd_invitation:INV123
-	if (urn.startsWith("urn:li:")) {
-		const parts = urn.split(":");
-		return parts[parts.length - 1];
-	}
-	return urn;
 }
 
 /**
