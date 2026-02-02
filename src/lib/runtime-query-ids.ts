@@ -166,6 +166,13 @@ const BUNDLE_RELATIVE_REGEX = new RegExp(
 );
 const DEBUG_QUERY_IDS =
 	process.env.LI_DEBUG_QUERY_IDS === "1" || process.env.LI_DEBUG_QUERY_IDS === "true";
+const DEBUG_QUERY_IDS_DUMP =
+	process.env.LI_DEBUG_QUERY_IDS_DUMP === "1" ||
+	process.env.LI_DEBUG_QUERY_IDS_DUMP === "true";
+const DEBUG_QUERY_IDS_DUMP_BUNDLE =
+	process.env.LI_DEBUG_QUERY_IDS_DUMP_BUNDLE === "1" ||
+	process.env.LI_DEBUG_QUERY_IDS_DUMP_BUNDLE === "true";
+let dumpedBundle = false;
 
 function debugQueryIds(message: string): void {
 	if (!DEBUG_QUERY_IDS) {
@@ -406,6 +413,13 @@ async function discoverBundles(
 				`entrypoint contentType=${response.contentType} bytes=${response.text.length} url=${url}`,
 			);
 			const html = response.text;
+			if (DEBUG_QUERY_IDS_DUMP) {
+				try {
+					writeFileSync("/tmp/li-messaging.html", html, "utf8");
+				} catch {
+					// Ignore dump failures.
+				}
+			}
 			const genericFromHtml = extractQueryIdFromText(html, operations);
 			if (genericFromHtml) {
 				debugQueryIds(`entrypoint direct_query_id=${genericFromHtml.queryId} url=${url}`);
@@ -452,6 +466,13 @@ async function discoverBundles(
 				}
 			}
 			const extracted = extractBundleUrlsFromHtml(response.text);
+			if (DEBUG_QUERY_IDS_DUMP && extracted.length > 0) {
+				try {
+					writeFileSync("/tmp/li-messaging-bundles.txt", extracted.join("\n"), "utf8");
+				} catch {
+					// Ignore dump failures.
+				}
+			}
 			for (const bundleUrl of extracted) {
 				bundles.add(bundleUrl);
 			}
@@ -477,6 +498,14 @@ async function fetchBundleText(client: LinkedInClient, url: string): Promise<str
 		throw new Error(`Failed to fetch bundle ${url}`);
 	}
 	debugQueryIds(`bundle ok url=${url}`);
+	if (DEBUG_QUERY_IDS_DUMP_BUNDLE && !dumpedBundle) {
+		try {
+			writeFileSync("/tmp/li-messaging-bundle.js", response.text, "utf8");
+			dumpedBundle = true;
+		} catch {
+			// Ignore dump failures.
+		}
+	}
 	return response.text;
 }
 

@@ -23,6 +23,8 @@ const DEBUG_MESSAGES_RESPONSE =
 const MESSAGING_QUERY_ID_OPERATIONS = [
 	"messengerConversationsBySyncToken",
 	"messengerConversations",
+	"voyagerMessagingDashConversations",
+	"voyagerMessagingDashMessagingSettings",
 ] as const;
 
 function debugMessages(message: string): void {
@@ -301,6 +303,11 @@ async function resolveMessagingQueryId(): Promise<{ queryId: string; operation: 
 		}
 	}
 
+	const messageSettingsId = await runtimeQueryIds.getId("voyagerMessagingDashMessagingSettings");
+	if (messageSettingsId) {
+		return { queryId: messageSettingsId, operation: "voyagerMessagingDashMessagingSettings" };
+	}
+
 	const harPath = process.env.LINKEDIN_MESSAGING_HAR ?? "www.linkedin.com.fullv3.har";
 	if (existsSync(harPath)) {
 		try {
@@ -324,7 +331,10 @@ async function resolveMessagingQueryId(): Promise<{ queryId: string; operation: 
 				if (!operation) {
 					continue;
 				}
-				if (MESSAGING_QUERY_ID_OPERATIONS.includes(operation as never)) {
+				if (
+					MESSAGING_QUERY_ID_OPERATIONS.includes(operation as never) ||
+					operation === "voyagerMessagingDashMessagingSettings"
+				) {
 					return { queryId, operation };
 				}
 			}

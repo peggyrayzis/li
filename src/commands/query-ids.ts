@@ -22,7 +22,12 @@ interface QueryIdsJsonOutput {
 	};
 }
 
-const OPERATIONS = ["messengerConversationsBySyncToken", "messengerConversations"] as const;
+const OPERATIONS = [
+	"messengerConversationsBySyncToken",
+	"messengerConversations",
+	"voyagerMessagingDashConversations",
+	"voyagerMessagingDashMessagingSettings",
+] as const;
 
 export async function queryIds(options: QueryIdsOptions = {}): Promise<string> {
 	const harPath =
