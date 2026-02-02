@@ -9,7 +9,8 @@
 import type { LinkedInCredentials } from "../lib/auth.js";
 import { LinkedInClient } from "../lib/client.js";
 import endpoints from "../lib/endpoints.json" with { type: "json" };
-import { parseInvitation } from "../lib/parser.js";
+import { buildHeaders } from "../lib/headers.js";
+import { parseInvitationsFromFlagshipRsc } from "../lib/parser.js";
 import type { NormalizedInvitation } from "../lib/types.js";
 import { extractIdFromUrn } from "../lib/url-parser.js";
 import { formatInvitation } from "../output/human.js";
@@ -17,15 +18,6 @@ import { formatJson } from "../output/json.js";
 
 export interface InvitesOptions {
 	json?: boolean;
-}
-
-interface InvitationsResponse {
-	elements?: Array<Record<string, unknown>>;
-	paging?: {
-		total: number;
-		count: number;
-		start: number;
-	};
 }
 
 interface ListInvitesResult {
@@ -37,6 +29,15 @@ interface AcceptInviteResult {
 	success: boolean;
 	invitationId: string;
 }
+
+const FLAGSHIP_INVITES_URL =
+	"https://www.linkedin.com/flagship-web/rsc-action/actions/pagination?sduiid=com.linkedin.sdui.pagers.mynetwork.invitationsList";
+const FLAGSHIP_INVITES_REFERER =
+	"https://www.linkedin.com/mynetwork/invitation-manager/received/";
+const FLAGSHIP_PAGE_INSTANCE =
+	"urn:li:page:d_flagship3_people_invitations;fkBHD5OCSzq7lUUo2+5Oiw==";
+const FLAGSHIP_TRACK =
+	'{"clientVersion":"0.2.3802","mpVersion":"0.2.3802","osName":"web","timezoneOffset":-5,"timezone":"America/New_York","deviceFormFactor":"DESKTOP","mpName":"web","displayDensity":2,"displayWidth":3024,"displayHeight":1964}';
 
 /**
  * List pending connection invitations.
@@ -51,12 +52,26 @@ export async function listInvites(
 ): Promise<string> {
 	const client = new LinkedInClient(credentials);
 
-	const response = await client.request(endpoints.endpoints.invitations);
-	const data = (await response.json()) as InvitationsResponse;
+	const headers = {
+		...buildHeaders(credentials),
+		Accept: "*/*",
+		"Content-Type": "application/json",
+		Origin: "https://www.linkedin.com",
+		Referer: FLAGSHIP_INVITES_REFERER,
+		"X-Li-Page-Instance": FLAGSHIP_PAGE_INSTANCE,
+		"X-Li-Track": FLAGSHIP_TRACK,
+	};
 
-	const elements = data.elements || [];
-	const invitations = elements.map((el) => parseInvitation(el));
-	const total = data.paging?.total || invitations.length;
+	const response = await client.requestAbsolute(FLAGSHIP_INVITES_URL, {
+		method: "POST",
+		headers,
+		body: JSON.stringify(buildInvitesPaginationBody(0)),
+	});
+
+	const buffer = await response.arrayBuffer();
+	const payload = new TextDecoder("utf-8").decode(buffer);
+	const invitations = parseInvitationsFromFlagshipRsc(payload);
+	const total = invitations.length;
 
 	if (options.json) {
 		const result: ListInvitesResult = {
@@ -80,6 +95,61 @@ export async function listInvites(
 	}
 
 	return lines.join("\n").trim();
+}
+
+function buildInvitesPaginationBody(startIndex: number): Record<string, unknown> {
+	return {
+		pagerId: "com.linkedin.sdui.pagers.mynetwork.invitationsList",
+		clientArguments: {
+			$type: "proto.sdui.actions.requests.RequestedArguments",
+			payload: {
+				startIndex,
+				invitationTypeEnum: [
+					"GenericInvitationType_CONNECTION",
+					"GenericInvitationType_ORGANIZATION",
+					"GenericInvitationType_EVENT",
+					"GenericInvitationType_CONTENT_SERIES",
+					"GenericInvitationType_MEMBER_FOLLOW",
+				],
+				filterCriteriaEnum: "FilterCriteria_UNKNOWN",
+				invitationDirectionEnum: "PendingInvitationDirection_RECEIVED",
+			},
+			requestedStateKeys: [],
+			requestMetadata: { $type: "proto.sdui.common.RequestMetadata" },
+			states: [],
+			screenId: "com.linkedin.sdui.flagshipnav.mynetwork.invitations.InvitationReceivedWithType",
+		},
+		paginationRequest: {
+			$type: "proto.sdui.actions.requests.PaginationRequest",
+			pagerId: "com.linkedin.sdui.pagers.mynetwork.invitationsList",
+			requestedArguments: {
+				$type: "proto.sdui.actions.requests.RequestedArguments",
+				payload: {
+					startIndex,
+					invitationTypeEnum: [
+						"GenericInvitationType_CONNECTION",
+						"GenericInvitationType_ORGANIZATION",
+						"GenericInvitationType_EVENT",
+						"GenericInvitationType_CONTENT_SERIES",
+						"GenericInvitationType_MEMBER_FOLLOW",
+					],
+					filterCriteriaEnum: "FilterCriteria_UNKNOWN",
+					invitationDirectionEnum: "PendingInvitationDirection_RECEIVED",
+				},
+				requestedStateKeys: [],
+				requestMetadata: { $type: "proto.sdui.common.RequestMetadata" },
+			},
+			trigger: {
+				$case: "itemDistanceTrigger",
+				itemDistanceTrigger: {
+					$type: "proto.sdui.actions.requests.ItemDistanceTrigger",
+					preloadDistance: 3,
+					preloadLength: 250,
+				},
+			},
+			retryCount: 2,
+		},
+	};
 }
 
 /**

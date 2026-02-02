@@ -242,6 +242,73 @@ export function parseConnectionsFromFlagshipRsc(payload: string): NormalizedConn
 }
 
 /**
+ * Parses invitations from LinkedIn flagship-web RSC payloads.
+ * These payloads are not JSON and require regex extraction.
+ */
+export function parseInvitationsFromFlagshipRsc(payload: string): NormalizedInvitation[] {
+	const invitationRegex = new RegExp(
+		String.raw`"entityUrn":"(urn:li:fsd_invitation:[^"]+)"[\s\S]{0,4000}?"sharedSecret":"([^"]*)"[\s\S]{0,4000}?"invitationType":"([^"]+)"[\s\S]{0,4000}?"sentTime":(\d+)[\s\S]{0,4000}?"sharedConnections":\{"count":(\d+)\}[\s\S]{0,4000}?"miniProfile":\{([\s\S]{0,2000}?)\}`,
+		"g",
+	);
+
+	const results: NormalizedInvitation[] = [];
+	const seen = new Set<string>();
+
+	let match: RegExpExecArray | null;
+	while ((match = invitationRegex.exec(payload)) !== null) {
+		const urn = match[1];
+		const sharedSecret = match[2];
+		const invitationType = match[3];
+		const sentTime = Number(match[4] ?? 0);
+		const sharedConnections = Number(match[5] ?? 0);
+		const miniProfileChunk = match[6] ?? "";
+		const nextInvitationIndex = payload.indexOf(
+			'"entityUrn":"urn:li:fsd_invitation:',
+			match.index + 1,
+		);
+		const chunk = payload.slice(
+			match.index,
+			nextInvitationIndex === -1 ? payload.length : nextInvitationIndex,
+		);
+		const messageMatch = chunk.match(/"message":"([^"]+)"/);
+
+		if (!urn || seen.has(urn)) {
+			continue;
+		}
+
+		const usernameMatch = miniProfileChunk.match(/"publicIdentifier":"([^"]+)"/);
+		const firstNameMatch = miniProfileChunk.match(/"firstName":"([^"]+)"/);
+		const lastNameMatch = miniProfileChunk.match(/"lastName":"([^"]+)"/);
+		const headlineMatch = miniProfileChunk.match(/"(?:occupation|headline)":"([^"]*)"/);
+
+		const rawInvitation: Record<string, unknown> = {
+			entityUrn: urn,
+			sharedSecret,
+			invitationType,
+			sentTime,
+			sharedConnections: { count: sharedConnections },
+			genericInviter: {
+				miniProfile: {
+					publicIdentifier: usernameMatch?.[1] ?? "",
+					firstName: firstNameMatch?.[1] ?? "",
+					lastName: lastNameMatch?.[1] ?? "",
+					occupation: headlineMatch?.[1] ?? "",
+				},
+			},
+		};
+
+		if (messageMatch?.[1]) {
+			rawInvitation.message = messageMatch[1];
+		}
+
+		results.push(parseInvitation(rawInvitation));
+		seen.add(urn);
+	}
+
+	return results;
+}
+
+/**
  * Parses a message event from conversation events array.
  *
  * @param raw - Raw message event from API

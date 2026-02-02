@@ -9,6 +9,7 @@ import {
 	parseConnection,
 	parseConversation,
 	parseInvitation,
+	parseInvitationsFromFlagshipRsc,
 	parseMessage,
 	parseProfile,
 } from "../../src/lib/parser.js";
@@ -393,6 +394,30 @@ describe("parser", () => {
 			expect(result).toHaveProperty("inviter");
 			expect(result).toHaveProperty("sharedConnections");
 			expect(result).toHaveProperty("sentAt");
+		});
+	});
+
+	describe("parseInvitationsFromFlagshipRsc", () => {
+		it("parses invitation data from RSC payload", () => {
+			const payload =
+				'{"entityUrn":"urn:li:fsd_invitation:INV123","sharedSecret":"secret-1","invitationType":"CONNECTION","sentTime":1706572800000,"sharedConnections":{"count":3},"genericInviter":{"miniProfile":{"publicIdentifier":"newconnection","firstName":"Alex","lastName":"Johnson","occupation":"Engineering Lead at Acme"}},"message":"Loved your developer marketing talk!"}' +
+				'{"entityUrn":"urn:li:fsd_invitation:INV456","sharedSecret":"secret-2","invitationType":"CONNECTION","sentTime":1706486400000,"sharedConnections":{"count":1},"genericInviter":{"miniProfile":{"publicIdentifier":"anotherone","firstName":"Sam","lastName":"Wilson","occupation":"Designer at Studio"}}}';
+
+			const result = parseInvitationsFromFlagshipRsc(payload);
+
+			expect(result).toHaveLength(2);
+			expect(result[0]).toMatchObject({
+				invitationId: "INV123",
+				type: "CONNECTION",
+				sharedConnections: 3,
+			});
+			expect(result[0].inviter).toMatchObject({
+				username: "newconnection",
+				firstName: "Alex",
+				lastName: "Johnson",
+				headline: "Engineering Lead at Acme",
+			});
+			expect(result[0].message).toContain("developer marketing");
 		});
 	});
 });

@@ -4,7 +4,19 @@ import { acceptInvite, type InvitesOptions, listInvites } from "../../../src/com
 import type { LinkedInCredentials } from "../../../src/lib/auth.js";
 
 // Load fixture
-import invitationsFixture from "../../fixtures/invitations.json";
+const rscPayload =
+	'{"entityUrn":"urn:li:fsd_invitation:INV123","sharedSecret":"secret-1","invitationType":"CONNECTION","sentTime":1706572800000,"sharedConnections":{"count":3},"genericInviter":{"miniProfile":{"publicIdentifier":"newconnection","firstName":"Alex","lastName":"Johnson","occupation":"Engineering Lead at Acme"}},"message":"Loved your developer marketing talk!"}' +
+	'{"entityUrn":"urn:li:fsd_invitation:INV456","sharedSecret":"secret-2","invitationType":"CONNECTION","sentTime":1706486400000,"sharedConnections":{"count":1},"genericInviter":{"miniProfile":{"publicIdentifier":"anotherone","firstName":"Sam","lastName":"Wilson","occupation":"Designer at Studio"}}}';
+
+function mockFlagshipResponse(payload: string) {
+	const encoder = new TextEncoder();
+	return {
+		ok: true,
+		status: 200,
+		headers: { get: () => null },
+		arrayBuffer: async () => encoder.encode(payload).buffer,
+	};
+}
 
 describe("invites command", () => {
 	const mockCredentials: LinkedInCredentials = {
@@ -28,17 +40,15 @@ describe("invites command", () => {
 
 	describe("listInvites", () => {
 		it("fetches and formats pending invitations", async () => {
-			mockFetch.mockResolvedValueOnce({
-				ok: true,
-				status: 200,
-				json: async () => invitationsFixture,
-			});
+			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(rscPayload));
 
 			const result = await listInvites(mockCredentials);
 
 			// Should call invitations endpoint
 			expect(mockFetch).toHaveBeenCalledTimes(1);
-			expect(mockFetch.mock.calls[0][0]).toContain("/relationships/invitationViews");
+			expect(mockFetch.mock.calls[0][0]).toContain(
+				"/flagship-web/rsc-action/actions/pagination?sduiid=com.linkedin.sdui.pagers.mynetwork.invitationsList",
+			);
 
 			// Should contain inviter names from fixture
 			expect(result).toContain("Alex Johnson");
@@ -46,11 +56,7 @@ describe("invites command", () => {
 		});
 
 		it("returns human-readable output by default", async () => {
-			mockFetch.mockResolvedValueOnce({
-				ok: true,
-				status: 200,
-				json: async () => invitationsFixture,
-			});
+			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(rscPayload));
 
 			const result = await listInvites(mockCredentials);
 
@@ -60,11 +66,7 @@ describe("invites command", () => {
 		});
 
 		it("returns JSON when --json flag is set", async () => {
-			mockFetch.mockResolvedValueOnce({
-				ok: true,
-				status: 200,
-				json: async () => invitationsFixture,
-			});
+			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(rscPayload));
 
 			const options: InvitesOptions = { json: true };
 			const result = await listInvites(mockCredentials, options);
@@ -77,14 +79,7 @@ describe("invites command", () => {
 		});
 
 		it("handles empty invitations list", async () => {
-			mockFetch.mockResolvedValueOnce({
-				ok: true,
-				status: 200,
-				json: async () => ({
-					elements: [],
-					paging: { total: 0, count: 10, start: 0 },
-				}),
-			});
+			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(""));
 
 			const result = await listInvites(mockCredentials);
 
@@ -92,11 +87,7 @@ describe("invites command", () => {
 		});
 
 		it("includes invitation message when present", async () => {
-			mockFetch.mockResolvedValueOnce({
-				ok: true,
-				status: 200,
-				json: async () => invitationsFixture,
-			});
+			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(rscPayload));
 
 			const result = await listInvites(mockCredentials);
 
@@ -105,11 +96,7 @@ describe("invites command", () => {
 		});
 
 		it("shows shared connections count", async () => {
-			mockFetch.mockResolvedValueOnce({
-				ok: true,
-				status: 200,
-				json: async () => invitationsFixture,
-			});
+			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(rscPayload));
 
 			const result = await listInvites(mockCredentials);
 

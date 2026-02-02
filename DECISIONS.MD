@@ -106,4 +106,12 @@ This file tracks architectural and implementation decisions made during developm
 
 ---
 
+### 2026-02-02 Invites - Switch to Flagship SDUI Pagination
+**Context**: `/relationships/invitationViews` returns 400 in integration; invites are now served by flagship-web SDUI pagination.
+**Decision**: Fetch invitations from `flagship-web/rsc-action/actions/pagination` with `sduiid=com.linkedin.sdui.pagers.mynetwork.invitationsList` and parse invitations from the RSC payload.
+**Reason**: HAR shows SDUI pagination as the active endpoint for invites.
+**Consequences**: Invites list parsing is now heuristic (regex-based) and may need updates if the RSC format changes.
+
+---
+
 <!-- Add new decisions above this line -->
