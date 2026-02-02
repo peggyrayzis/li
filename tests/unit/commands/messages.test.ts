@@ -87,7 +87,7 @@ describe("messages command", () => {
 			await listConversations(mockCredentials);
 
 			expect(mockRequest).toHaveBeenCalledWith(
-				expect.stringContaining("queryId=messengerConversations."),
+				expect.stringMatching(/queryId=messengerConversations(?:BySyncToken)?\./),
 				expect.any(Object),
 			);
 		});
@@ -148,9 +148,10 @@ describe("messages command", () => {
 				ids: { messengerConversations: "messengerConversations.test123" },
 				discovery: { harPath: "linkedIn-html" },
 			});
-			const getIdSpy = vi
-				.spyOn(runtimeQueryIds, "getId")
-				.mockResolvedValue("messengerConversations.test123");
+			const getIdSpy = vi.spyOn(runtimeQueryIds, "getId").mockImplementation(
+				async (operation: string) =>
+					operation === "messengerConversations" ? "messengerConversations.test123" : null,
+			);
 			const snapshotSpy = vi.spyOn(runtimeQueryIds, "getSnapshotInfo").mockResolvedValue(null);
 
 			let graphqlCalls = 0;

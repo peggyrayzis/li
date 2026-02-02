@@ -20,7 +20,10 @@ const DEBUG_MESSAGES =
 const DEBUG_MESSAGES_RESPONSE =
 	process.env.LI_DEBUG_MESSAGES_RESPONSE === "1" ||
 	process.env.LI_DEBUG_MESSAGES_RESPONSE === "true";
-const MESSAGING_QUERY_ID_OPERATIONS = ["messengerConversations"] as const;
+const MESSAGING_QUERY_ID_OPERATIONS = [
+	"messengerConversationsBySyncToken",
+	"messengerConversations",
+] as const;
 
 function debugMessages(message: string): void {
 	if (!DEBUG_MESSAGES) {
@@ -128,8 +131,9 @@ export async function listConversations(
 	const mailboxUrn = await resolveMailboxUrn(client);
 	const snapshotInfo = await runtimeQueryIds.getSnapshotInfo();
 	const snapshotHeaders = snapshotInfo?.snapshot.headers ?? {};
-	const snapshotVariables = snapshotInfo?.snapshot.variables?.messengerConversations;
 	const lastUpdatedBefore = Date.now();
+	const { queryId, operation } = await resolveMessagingQueryId();
+	const snapshotVariables = snapshotInfo?.snapshot.variables?.[operation];
 	const query = "(predicateUnions:List((conversationCategoryPredicate:(category:PRIMARY_INBOX))))";
 	const computedVariables = `(query:${query},count:${apiCount},mailboxUrn:${encodeURIComponent(mailboxUrn)},lastUpdatedBefore:${lastUpdatedBefore})`;
 	const variables = snapshotVariables
@@ -138,7 +142,6 @@ export async function listConversations(
 				(_, value: string) => `mailboxUrn:${encodeURIComponent(value)}`,
 			)
 		: computedVariables;
-	const queryId = await resolveMessagingQueryId();
 	debugMessages(`queryId=${queryId} variables=${variables}`);
 	if (Object.keys(snapshotHeaders).length > 0) {
 		debugMessages(`headers=${JSON.stringify(snapshotHeaders)}`);
@@ -154,13 +157,13 @@ export async function listConversations(
 
 		try {
 			await runtimeQueryIds.refreshFromLinkedIn(client, [...MESSAGING_QUERY_ID_OPERATIONS]);
-			const refreshedQueryId = await resolveMessagingQueryId();
+			const refreshed = await resolveMessagingQueryId();
 			const refreshedSnapshot = await runtimeQueryIds.getSnapshotInfo();
 			const refreshedHeaders = refreshedSnapshot?.snapshot.headers ?? {};
 			response = await requestConversations(
 				client,
 				credentials,
-				refreshedQueryId,
+				refreshed.queryId,
 				variables,
 				refreshedHeaders,
 			);
@@ -181,10 +184,16 @@ export async function listConversations(
 			}
 
 			await runtimeQueryIds.refreshFromHar([...MESSAGING_QUERY_ID_OPERATIONS], harPath);
-			const harQueryId = await resolveMessagingQueryId();
+			const har = await resolveMessagingQueryId();
 			const harSnapshot = await runtimeQueryIds.getSnapshotInfo();
 			const harHeaders = harSnapshot?.snapshot.headers ?? {};
-			response = await requestConversations(client, credentials, harQueryId, variables, harHeaders);
+			response = await requestConversations(
+				client,
+				credentials,
+				har.queryId,
+				variables,
+				harHeaders,
+			);
 			await debugResponseBody(response);
 		}
 	}
@@ -273,14 +282,23 @@ async function lookupProfileUrnByUsername(
 	throw new Error("Could not resolve mailbox URN from /me response");
 }
 
-async function resolveMessagingQueryId(): Promise<string> {
+function inferOperationFromQueryId(queryId: string): string | null {
+	const prefix = queryId.split(".")[0];
+	return prefix ? prefix : null;
+}
+
+async function resolveMessagingQueryId(): Promise<{ queryId: string; operation: string }> {
 	if (process.env.LINKEDIN_MESSAGING_QUERY_ID) {
-		return process.env.LINKEDIN_MESSAGING_QUERY_ID;
+		const queryId = process.env.LINKEDIN_MESSAGING_QUERY_ID;
+		const operation = inferOperationFromQueryId(queryId) ?? "messengerConversations";
+		return { queryId, operation };
 	}
 
-	const cached = await runtimeQueryIds.getId("messengerConversations");
-	if (cached) {
-		return cached;
+	for (const operation of MESSAGING_QUERY_ID_OPERATIONS) {
+		const cached = await runtimeQueryIds.getId(operation);
+		if (cached) {
+			return { queryId: cached, operation };
+		}
 	}
 
 	const harPath = process.env.LINKEDIN_MESSAGING_HAR ?? "www.linkedin.com.fullv3.har";
@@ -293,16 +311,21 @@ async function resolveMessagingQueryId(): Promise<string> {
 			const entries = parsed.log?.entries ?? [];
 			for (const entry of entries) {
 				const url = entry.request?.url ?? "";
-				if (
-					url.includes("voyagerMessagingGraphQL/graphql") &&
-					url.includes("messengerConversations")
-				) {
-					const query = url.split("?")[1] ?? "";
-					const params = new URLSearchParams(query);
-					const queryId = params.get("queryId");
-					if (queryId) {
-						return queryId;
-					}
+				if (!url.includes("voyagerMessagingGraphQL/graphql")) {
+					continue;
+				}
+				const query = url.split("?")[1] ?? "";
+				const params = new URLSearchParams(query);
+				const queryId = params.get("queryId");
+				if (!queryId) {
+					continue;
+				}
+				const operation = inferOperationFromQueryId(queryId);
+				if (!operation) {
+					continue;
+				}
+				if (MESSAGING_QUERY_ID_OPERATIONS.includes(operation as never)) {
+					return { queryId, operation };
 				}
 			}
 		} catch {
@@ -310,7 +333,10 @@ async function resolveMessagingQueryId(): Promise<string> {
 		}
 	}
 
-	return "messengerConversations.0d5e6781bbee71c3e51c8843c6519f48";
+	return {
+		queryId: "messengerConversations.0d5e6781bbee71c3e51c8843c6519f48",
+		operation: "messengerConversations",
+	};
 }
 
 /**

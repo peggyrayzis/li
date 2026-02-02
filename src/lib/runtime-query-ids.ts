@@ -318,11 +318,28 @@ function extractBundleUrlsFromHtml(html: string): string[] {
 	return Array.from(bundles);
 }
 
-const MESSENGER_QUERYID_REGEX = /messengerConversations\.[a-zA-Z0-9._-]+/g;
-const QUERY_ID_MAP_REGEX = /"messengerConversations"\s*:\s*"([a-zA-Z0-9._-]+)"/i;
-const HTML_QUERYID_REGEX = /queryId\s*[:=]\s*["'](messengerConversations\.[a-zA-Z0-9._-]+)["']/i;
-const HTML_QUERYID_URL_REGEX = /queryId=messengerConversations\.[a-zA-Z0-9._-]+/i;
-const HTML_QUERYID_ENCODED_REGEX = /messengerConversations%2E([a-zA-Z0-9._-]+)/i;
+function buildDirectQueryRegex(operation: string): RegExp {
+	return new RegExp(`${operation}\\.[a-zA-Z0-9._-]+`, "g");
+}
+
+function buildQueryIdMapRegex(operation: string): RegExp {
+	return new RegExp(`"${operation}"\\s*:\\s*"([a-zA-Z0-9._-]+)"`, "i");
+}
+
+function buildHtmlQueryIdRegex(operation: string): RegExp {
+	return new RegExp(
+		`queryId\\s*[:=]\\s*["'](${operation}\\.[a-zA-Z0-9._-]+)["']`,
+		"i",
+	);
+}
+
+function buildHtmlQueryIdUrlRegex(operation: string): RegExp {
+	return new RegExp(`queryId=${operation}\\.[a-zA-Z0-9._-]+`, "i");
+}
+
+function buildHtmlQueryIdEncodedRegex(operation: string): RegExp {
+	return new RegExp(`${operation}%2E([a-zA-Z0-9._-]+)`, "i");
+}
 
 async function fetchWebText(
 	client: LinkedInClient,
@@ -345,7 +362,8 @@ async function fetchWebText(
 
 async function discoverBundles(
 	client: LinkedInClient,
-): Promise<{ bundles: string[]; directQueryId?: string }> {
+	operations: string[],
+): Promise<{ bundles: string[]; directQueryId?: { operation: string; queryId: string } }> {
 	const bundles = new Set<string>();
 	for (const url of LINKEDIN_ENTRYPOINTS) {
 		try {
@@ -362,28 +380,45 @@ async function discoverBundles(
 				`entrypoint contentType=${response.contentType} bytes=${response.text.length} url=${url}`,
 			);
 			const html = response.text;
-			const htmlDirect = HTML_QUERYID_REGEX.exec(html) ?? HTML_QUERYID_URL_REGEX.exec(html) ?? null;
-			if (htmlDirect?.[1]) {
-				debugQueryIds(`entrypoint direct_query_id=${htmlDirect[1]} url=${url}`);
-				return { bundles: [], directQueryId: htmlDirect[1] };
-			}
-			if (htmlDirect?.[0]?.includes("queryId=messengerConversations.")) {
-				const extracted = htmlDirect[0].split("queryId=")[1];
-				if (extracted) {
-					debugQueryIds(`entrypoint direct_query_id=${extracted} url=${url}`);
-					return { bundles: [], directQueryId: extracted };
+			for (const operation of operations) {
+				const htmlDirect =
+					buildHtmlQueryIdRegex(operation).exec(html) ??
+					buildHtmlQueryIdUrlRegex(operation).exec(html) ??
+					null;
+				if (htmlDirect?.[1]) {
+					debugQueryIds(`entrypoint direct_query_id=${htmlDirect[1]} url=${url}`);
+					return {
+						bundles: [],
+						directQueryId: { operation, queryId: htmlDirect[1] },
+					};
 				}
-			}
-			const encodedMatch = HTML_QUERYID_ENCODED_REGEX.exec(html);
-			if (encodedMatch?.[1]) {
-				const decoded = `messengerConversations.${encodedMatch[1]}`;
-				debugQueryIds(`entrypoint direct_query_id=${decoded} url=${url}`);
-				return { bundles: [], directQueryId: decoded };
-			}
-			const directQueryMatch = html.match(MESSENGER_QUERYID_REGEX);
-			if (directQueryMatch && directQueryMatch.length > 0) {
-				debugQueryIds(`entrypoint direct_query_id=${directQueryMatch[0]} url=${url}`);
-				return { bundles: [], directQueryId: directQueryMatch[0] };
+				if (htmlDirect?.[0]?.includes(`queryId=${operation}.`)) {
+					const extracted = htmlDirect[0].split("queryId=")[1];
+					if (extracted) {
+						debugQueryIds(`entrypoint direct_query_id=${extracted} url=${url}`);
+						return {
+							bundles: [],
+							directQueryId: { operation, queryId: extracted },
+						};
+					}
+				}
+				const encodedMatch = buildHtmlQueryIdEncodedRegex(operation).exec(html);
+				if (encodedMatch?.[1]) {
+					const decoded = `${operation}.${encodedMatch[1]}`;
+					debugQueryIds(`entrypoint direct_query_id=${decoded} url=${url}`);
+					return {
+						bundles: [],
+						directQueryId: { operation, queryId: decoded },
+					};
+				}
+				const directQueryMatch = html.match(buildDirectQueryRegex(operation));
+				if (directQueryMatch && directQueryMatch.length > 0) {
+					debugQueryIds(`entrypoint direct_query_id=${directQueryMatch[0]} url=${url}`);
+					return {
+						bundles: [],
+						directQueryId: { operation, queryId: directQueryMatch[0] },
+					};
+				}
 			}
 			const extracted = extractBundleUrlsFromHtml(response.text);
 			for (const bundleUrl of extracted) {
@@ -414,13 +449,21 @@ async function fetchBundleText(client: LinkedInClient, url: string): Promise<str
 	return response.text;
 }
 
-function extractQueryIdFromBundleText(contents: string): string | null {
-	const mapMatch = QUERY_ID_MAP_REGEX.exec(contents);
-	if (mapMatch?.[1]) {
-		return `messengerConversations.${mapMatch[1]}`;
+function extractQueryIdFromBundleText(
+	contents: string,
+	operations: string[],
+): { operation: string; queryId: string } | null {
+	for (const operation of operations) {
+		const mapMatch = buildQueryIdMapRegex(operation).exec(contents);
+		if (mapMatch?.[1]) {
+			return { operation, queryId: `${operation}.${mapMatch[1]}` };
+		}
+		const direct = contents.match(buildDirectQueryRegex(operation));
+		if (direct?.[0]) {
+			return { operation, queryId: direct[0] };
+		}
 	}
-	const direct = contents.match(MESSENGER_QUERYID_REGEX);
-	return direct?.[0] ?? null;
+	return null;
 }
 
 export const runtimeQueryIds = {
@@ -484,11 +527,11 @@ export const runtimeQueryIds = {
 		client: LinkedInClient,
 		operations: string[],
 	): Promise<QueryIdSnapshot> {
-		const discovery = await discoverBundles(client);
+		const discovery = await discoverBundles(client, operations);
 		if (discovery.directQueryId) {
 			const snapshot: QueryIdSnapshot = {
 				fetchedAt: new Date().toISOString(),
-				ids: { messengerConversations: discovery.directQueryId },
+				ids: { [discovery.directQueryId.operation]: discovery.directQueryId.queryId },
 				discovery: { harPath: "linkedIn-html" },
 			};
 			const cachePath = getCachePath();
@@ -525,7 +568,7 @@ export const runtimeQueryIds = {
 					}
 					try {
 						const js = await fetchBundleText(client, bundleUrl);
-						const extractedQueryId = extractQueryIdFromBundleText(js);
+						const extractedQueryId = extractQueryIdFromBundleText(js, operations);
 						if (!extractedQueryId) {
 							if (DEBUG_QUERY_IDS) {
 								debugQueryIds(`bundle skip (no messengerConversations) url=${bundleUrl}`);
@@ -533,10 +576,12 @@ export const runtimeQueryIds = {
 							return;
 						}
 						if (DEBUG_QUERY_IDS) {
-							debugQueryIds(`bundle contains messengerConversations url=${bundleUrl}`);
+							debugQueryIds(
+								`bundle contains ${extractedQueryId.operation} url=${bundleUrl}`,
+							);
 						}
-						ids.messengerConversations = extractedQueryId;
-						remaining.delete("messengerConversations");
+						ids[extractedQueryId.operation] = extractedQueryId.queryId;
+						remaining.delete(extractedQueryId.operation);
 					} catch {
 						// Ignore bundle failures; continue scanning others.
 					}

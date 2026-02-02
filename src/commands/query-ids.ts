@@ -22,7 +22,7 @@ interface QueryIdsJsonOutput {
 	};
 }
 
-const OPERATIONS = ["messengerConversations"] as const;
+const OPERATIONS = ["messengerConversationsBySyncToken", "messengerConversations"] as const;
 
 export async function queryIds(options: QueryIdsOptions = {}): Promise<string> {
 	const harPath =
