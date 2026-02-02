@@ -35,13 +35,21 @@ function handleError(error: unknown): never {
 }
 
 /**
- * Get credentials from CLI options or environment.
+ * Get credentials from CLI options, environment, or Chrome cookies.
+ * Follows Bird's pattern: CLI args > env vars > browser cookies (auto-fallback).
  */
 async function getCredentials(options: { liAt?: string; jsessionid?: string }) {
 	const result = await resolveCredentials({
 		liAt: options.liAt,
 		jsessionId: options.jsessionid,
+		cookieSource: ["chrome"], // Auto-fallback to Chrome when env vars not set
 	});
+
+	// Surface warnings to user (Bird pattern)
+	for (const warning of result.warnings) {
+		console.error(pc.yellow(`⚠ ${warning}`));
+	}
+
 	return result.credentials;
 }
 

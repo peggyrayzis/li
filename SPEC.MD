@@ -149,6 +149,9 @@ li followers — full follower list (GraphQL queryId required)
 li following — people you follow list (GraphQL queryId required)
 li follow <username> / li unfollow <username> — follow without connecting (GraphQL)
 li disconnect <username> — remove a connection
+li messages --unread — filter to unread conversations only
+li messages --seen — mark conversation as read
+li send --stdin — pipe message body from stdin
 
 Follower/connection counts are available in v0.1 via li whoami (uses stable /networkinfo endpoint). Only the lists for followers/following need GraphQL.
 Agent workflow — network management:
