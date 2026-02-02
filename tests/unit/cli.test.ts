@@ -331,7 +331,10 @@ describe("CLI", () => {
 				process.argv = originalArgv;
 			}
 
-			expect(mockListInvites).toHaveBeenCalledWith(mockCredentials, { json: undefined });
+			expect(mockListInvites).toHaveBeenCalledWith(mockCredentials, {
+				json: undefined,
+				includeSecrets: undefined,
+			});
 		});
 
 		it("accepts invitation with id", async () => {

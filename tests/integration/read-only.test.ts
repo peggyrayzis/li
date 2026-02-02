@@ -153,7 +153,6 @@ describe.skipIf(!shouldRunIntegration)("read-only integration", () => {
 			}
 
 			const firstInvite = parsed.invitations[0];
-			expect(firstInvite).toHaveProperty("invitationId");
 			expect(firstInvite).toHaveProperty("inviter");
 			expect(firstInvite).toHaveProperty("sentAt");
 			expect(firstInvite).toHaveProperty("sharedConnections");

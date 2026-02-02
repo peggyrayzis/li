@@ -84,6 +84,7 @@ li connect --json peggyrayzis
 li invites                      # List pending invitations
 li invites list                 # Same as above
 li invites list --json          # Output as JSON
+li invites list --json --include-secrets  # Include invitation IDs/secrets (unsafe)
 li invites accept INV123        # Accept an invitation by ID (v0.2)
 ```
 

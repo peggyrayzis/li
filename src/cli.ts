@@ -206,11 +206,18 @@ invitesCmd
 	.command("list", { isDefault: true })
 	.description("List pending invitations")
 	.option("--json", "Output as JSON")
+	.option(
+		"--include-secrets",
+		"Include invitation IDs and shared secrets in JSON output (unsafe)",
+	)
 	.action(async (options) => {
 		try {
 			const globalOpts = program.opts();
 			const credentials = await getCredentials(globalOpts);
-			const output = await listInvites(credentials, { json: options.json });
+			const output = await listInvites(credentials, {
+				json: options.json,
+				includeSecrets: options.includeSecrets,
+			});
 			console.log(output);
 		} catch (error) {
 			handleError(error);

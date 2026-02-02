@@ -108,8 +108,7 @@ li connections --json                    # Connection data as JSON
 li connect <username>                    # Send connection request
 li connect <username> --note "Loved your post on devtools marketing"
 li invites                               # Pending connection invitations
-li invites --accept <invite-id>          # Accept an invitation
-li invites --accept-all                  # Accept all pending (with --confirm)
+li invites --json --include-secrets      # Include invitation IDs/secrets (unsafe, v0.2)
 
 # Profile (stable: /identity/profiles/{slug}/profileView)
 li profile <username>                    # View profile (includes follower/connection count)
@@ -142,8 +141,8 @@ Agent workflow — network management:
 bash# Agent checks current counts
 li whoami --json  # → {"name": "...", "followers": 4821, "connectionsDisplay": "500+"}
 
-# Agent processes pending invites
-li invites --json | jq '.[] | select(.sharedConnections > 3) | .id' | \
+# Agent processes pending invites (v0.2)
+li invites --json --include-secrets | jq '.[] | select(.sharedConnections > 3) | .id' | \
   xargs -I{} li invites --accept {}
 
 # Agent filters connections for outreach targets

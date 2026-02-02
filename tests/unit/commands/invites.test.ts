@@ -76,6 +76,19 @@ describe("invites command", () => {
 			expect(Array.isArray(parsed.invitations)).toBe(true);
 			expect(parsed.invitations).toHaveLength(2);
 			expect(parsed.invitations[0]).toHaveProperty("inviter");
+			expect(parsed.invitations[0]).not.toHaveProperty("sharedSecret");
+			expect(parsed.invitations[0]).not.toHaveProperty("invitationId");
+		});
+
+		it("includes secrets when includeSecrets is true", async () => {
+			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(rscPayload));
+
+			const options: InvitesOptions = { json: true, includeSecrets: true };
+			const result = await listInvites(mockCredentials, options);
+			const parsed = JSON.parse(result);
+
+			expect(parsed.invitations[0]).toHaveProperty("sharedSecret");
+			expect(parsed.invitations[0]).toHaveProperty("invitationId");
 		});
 
 		it("handles empty invitations list", async () => {

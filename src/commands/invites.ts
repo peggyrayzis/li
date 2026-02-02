@@ -19,10 +19,13 @@ import { formatJson } from "../output/json.js";
 
 export interface InvitesOptions {
 	json?: boolean;
+	includeSecrets?: boolean;
 }
 
+type PublicInvitation = Omit<NormalizedInvitation, "invitationId" | "urn" | "sharedSecret">;
+
 interface ListInvitesResult {
-	invitations: NormalizedInvitation[];
+	invitations: NormalizedInvitation[] | PublicInvitation[];
 	total: number;
 }
 
@@ -91,8 +94,17 @@ export async function listInvites(
 	const total = invitations.length;
 
 	if (options.json) {
+		const invitationsForOutput = options.includeSecrets
+			? invitations
+			: invitations.map((invite) => ({
+					type: invite.type,
+					inviter: invite.inviter,
+					message: invite.message,
+					sharedConnections: invite.sharedConnections,
+					sentAt: invite.sentAt,
+				}));
 		const result: ListInvitesResult = {
-			invitations,
+			invitations: invitationsForOutput,
 			total,
 		};
 		return formatJson(result);
