@@ -279,10 +279,8 @@ export function parseConnection(raw: Record<string, unknown>): NormalizedConnect
  */
 export function parseConnectionsFromFlagshipRsc(payload: string): NormalizedConnection[] {
 	const normalizedPayload = payload.replace(/\\\//g, "/");
-	const connectionRegex = new RegExp(
-		String.raw`"url":"(https://www\.linkedin\.com/in/[^"]+)"[\s\S]{0,800}?"children":\["([^"]+)"\][\s\S]{0,800}?"children":\["([^"]+)"\]`,
-		"g",
-	);
+	const connectionRegex =
+		/"url":"(https:\/\/www\.linkedin\.com\/in\/[^"]+)"[\s\S]{0,800}?"children":\["([^"]+)"\][\s\S]{0,800}?"children":\["([^"]+)"\]/g;
 
 	const results: NormalizedConnection[] = [];
 	const seen = new Set<string>();
@@ -327,10 +325,8 @@ export function parseConnectionsFromFlagshipRsc(payload: string): NormalizedConn
  * These payloads are not JSON and require regex extraction.
  */
 export function parseInvitationsFromFlagshipRsc(payload: string): NormalizedInvitation[] {
-	const invitationRegex = new RegExp(
-		String.raw`"entityUrn":"(urn:li:fsd_invitation:[^"]+)"[\s\S]{0,4000}?"sharedSecret":"([^"]*)"[\s\S]{0,4000}?"invitationType":"([^"]+)"[\s\S]{0,4000}?"sentTime":(\d+)[\s\S]{0,4000}?"sharedConnections":\{"count":(\d+)\}[\s\S]{0,4000}?"miniProfile":\{([\s\S]{0,2000}?)\}`,
-		"g",
-	);
+	const invitationRegex =
+		/"entityUrn":"(urn:li:fsd_invitation:[^"]+)"[\s\S]{0,4000}?"sharedSecret":"([^"]*)"[\s\S]{0,4000}?"invitationType":"([^"]+)"[\s\S]{0,4000}?"sentTime":(\d+)[\s\S]{0,4000}?"sharedConnections":\{"count":(\d+)\}[\s\S]{0,4000}?"miniProfile":\{([\s\S]{0,2000}?)\}/g;
 
 	const results: NormalizedInvitation[] = [];
 	const seen = new Set<string>();
@@ -406,15 +402,14 @@ export function parseMessage(raw: Record<string, unknown>, conversationId = ""):
 	const miniProfile = from?.miniProfile as Record<string, unknown> | undefined;
 	const actor = raw.actor as Record<string, unknown> | undefined;
 	const actorParticipantType = actor?.participantType as Record<string, unknown> | undefined;
-	const sender =
-		miniProfile
-			? parseMiniProfile(miniProfile)
-			: actorParticipantType
-				? parseParticipantType(
-						actorParticipantType,
-						((actor?.backendUrn as string) || (actor?.entityUrn as string) || "") as string,
-					)
-				: parseMiniProfile(undefined);
+	const sender = miniProfile
+		? parseMiniProfile(miniProfile)
+		: actorParticipantType
+			? parseParticipantType(
+					actorParticipantType,
+					((actor?.backendUrn as string) || (actor?.entityUrn as string) || "") as string,
+				)
+			: parseMiniProfile(undefined);
 
 	return {
 		messageId:
@@ -430,10 +425,7 @@ export function parseMessage(raw: Record<string, unknown>, conversationId = ""):
 		sender,
 		body: (messageEvent?.body as string) || extractText(raw.body as TextField),
 		createdAt: new Date((raw.createdAt as number) || (raw.deliveredAt as number) || 0),
-		attachments:
-			(messageEvent?.attachments as unknown[]) ||
-			(raw.renderContent as unknown[]) ||
-			[],
+		attachments: (messageEvent?.attachments as unknown[]) || (raw.renderContent as unknown[]) || [],
 	};
 }
 
@@ -453,10 +445,7 @@ export function parseConversation(raw: Record<string, unknown>): NormalizedConve
 		| Array<Record<string, unknown>>
 		| undefined;
 	const conversationId =
-		(raw.dashEntityUrn as string) ||
-		(raw.backendUrn as string) ||
-		(raw.entityUrn as string) ||
-		"";
+		(raw.dashEntityUrn as string) || (raw.backendUrn as string) || (raw.entityUrn as string) || "";
 
 	const participants: NormalizedConnection[] = (participantsRaw || []).map((p) => {
 		const miniProfile = p.miniProfile as Record<string, unknown> | undefined;
@@ -501,10 +490,7 @@ export function parseConversation(raw: Record<string, unknown>): NormalizedConve
 		lastMessage,
 		lastActivityAt: new Date((raw.lastActivityAt as number) || 0),
 		unreadCount: (raw.unreadCount as number) || 0,
-		totalEventCount:
-			(raw.totalEventCount as number) ||
-			(messagesRaw ? messagesRaw.length : 0) ||
-			0,
+		totalEventCount: (raw.totalEventCount as number) || (messagesRaw ? messagesRaw.length : 0) || 0,
 		read: (raw.read as boolean) || false,
 		groupChat: (raw.groupChat as boolean) || false,
 	};

@@ -88,10 +88,7 @@ function extractVariablesFromHar(harPath: string, operation: string): string | n
 	return null;
 }
 
-function extractHeadersFromHar(
-	harPath: string,
-	operation: string,
-): Record<string, string> | null {
+function extractHeadersFromHar(harPath: string, operation: string): Record<string, string> | null {
 	if (!existsSync(harPath)) {
 		return null;
 	}
@@ -150,16 +147,19 @@ const LINKEDIN_ENTRYPOINTS = [
 	"https://www.linkedin.com/feed",
 ];
 
+// biome-ignore lint: escaped slashes are clearer via String.raw
 const BUNDLE_URL_REGEX = new RegExp(
 	String.raw`https:\\/\\/static(?:-exp[0-9]+)?\.licdn\.com\\/[^"'\s]+?\.js`,
 	"g",
 );
 const SCRIPT_SRC_REGEX = /<script[^>]+src=["']([^"']+)["']/gi;
-const JSON_SCRIPT_REGEX =
-	/<script[^>]+type=["']application\/json["'][^>]*>([\s\S]*?)<\/script>/gi;
+const JSON_SCRIPT_REGEX = /<script[^>]+type=["']application\/json["'][^>]*>([\s\S]*?)<\/script>/gi;
 const LINK_HREF_REGEX = /<link[^>]+href=["']([^"']+)["']/gi;
+// biome-ignore lint: escaped slashes are clearer via String.raw
 const BUNDLE_URL_ESCAPED_REGEX = new RegExp(String.raw`https:\\\/\\\/[^"\s]+?\.js`, "g");
+// biome-ignore lint: escaped slashes are clearer via String.raw
 const BUNDLE_URL_UNICODE_REGEX = new RegExp(String.raw`https:\\u002F\\u002F[^"\s]+?\.js`, "g");
+// biome-ignore lint: escaped slashes are clearer via String.raw
 const BUNDLE_RELATIVE_REGEX = new RegExp(
 	String.raw`"(\\/?(?:aero-v1|assets|sc)\\/[^"']+?\.js)"`,
 	"g",
@@ -362,10 +362,7 @@ async function discoverBundles(
 				`entrypoint contentType=${response.contentType} bytes=${response.text.length} url=${url}`,
 			);
 			const html = response.text;
-			const htmlDirect =
-				HTML_QUERYID_REGEX.exec(html) ??
-				HTML_QUERYID_URL_REGEX.exec(html) ??
-				null;
+			const htmlDirect = HTML_QUERYID_REGEX.exec(html) ?? HTML_QUERYID_URL_REGEX.exec(html) ?? null;
 			if (htmlDirect?.[1]) {
 				debugQueryIds(`entrypoint direct_query_id=${htmlDirect[1]} url=${url}`);
 				return { bundles: [], directQueryId: htmlDirect[1] };
@@ -498,10 +495,7 @@ export const runtimeQueryIds = {
 			await writeSnapshot(cachePath, snapshot);
 			return snapshot;
 		}
-		const maxBundlesEnv = Number.parseInt(
-			process.env.LI_QUERY_ID_MAX_BUNDLES ?? "",
-			10,
-		);
+		const maxBundlesEnv = Number.parseInt(process.env.LI_QUERY_ID_MAX_BUNDLES ?? "", 10);
 		const maxBundles = Number.isFinite(maxBundlesEnv) && maxBundlesEnv > 0 ? maxBundlesEnv : 200;
 		const timeoutEnv = Number.parseInt(process.env.LI_QUERY_ID_TIMEOUT_MS ?? "", 10);
 		const timeoutMs = Number.isFinite(timeoutEnv) && timeoutEnv > 0 ? timeoutEnv : 20000;
