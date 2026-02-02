@@ -1,0 +1,20 @@
+{
+  "baseUrl": "https://www.linkedin.com/voyager/api",
+  "endpoints": {
+    "me": "/me",
+    "networkInfo": "/identity/profiles/{username}/networkinfo",
+    "profile": "/identity/profiles/{username}/profileView",
+    "profileByUrn": "/identity/dash/profiles?q=memberIdentity&memberIdentity={username}",
+    "connections": "/relationships/dash/connections",
+    "connect": "/growth/normInvitations",
+    "invitations": "/relationships/invitationViews",
+    "acceptInvitation": "/relationships/invitations/{id}",
+    "conversations": "/messaging/conversations",
+    "conversationEvents": "/messaging/conversations/{id}/events",
+    "conversationByParticipant": "/messaging/conversations?q=participants&recipients=List({profileUrn})"
+  },
+  "pagination": {
+    "defaultCount": 20,
+    "maxCount": 50
+  }
+}
