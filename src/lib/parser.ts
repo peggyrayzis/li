@@ -412,8 +412,7 @@ function parseInvitationsFromFlagshipRscFallback(payload: string): NormalizedInv
 		const chunk = payload.slice(match.index, nextIndex === -1 ? payload.length : nextIndex);
 
 		const usernameMatch = chunk.match(/https:\/\/www\.linkedin\.com\/in\/([^/?"]+)/);
-		const firstNameMatch = chunk.match(/"firstName":"([^"]+)"/);
-		const lastNameMatch = chunk.match(/"lastName":"([^"]+)"/);
+		const nameMatch = parseInviteName(chunk);
 		const profileIdMatch = chunk.match(/"profileId":"([^"]+)"/);
 		const invitationTypeMatch = chunk.match(/"invitationType":"([^"]+)"/);
 		const sharedSecretMatch = chunk.match(/"validationToken":"([^"]+)"/);
@@ -432,8 +431,8 @@ function parseInvitationsFromFlagshipRscFallback(payload: string): NormalizedInv
 			genericInviter: {
 				miniProfile: {
 					publicIdentifier: usernameMatch?.[1] ?? "",
-					firstName: firstNameMatch?.[1] ?? "",
-					lastName: lastNameMatch?.[1] ?? "",
+					firstName: nameMatch.firstName,
+					lastName: nameMatch.lastName,
 					occupation: headline,
 					entityUrn: profileIdMatch?.[1]
 						? `urn:li:fsd_profile:${profileIdMatch[1]}`
@@ -451,6 +450,22 @@ function parseInvitationsFromFlagshipRscFallback(payload: string): NormalizedInv
 	}
 
 	return results;
+}
+
+function parseInviteName(chunk: string): { firstName: string; lastName: string } {
+	const textMatch = chunk.match(/"children":\["([^"]+)"\]/);
+	if (textMatch?.[1]) {
+		const raw = textMatch[1];
+		const namePart = raw.split(",")[0]?.trim() ?? "";
+		const parts = namePart.split(/\s+/).filter(Boolean);
+		if (parts.length > 0) {
+			return {
+				firstName: parts[0] ?? "",
+				lastName: parts.slice(1).join(" "),
+			};
+		}
+	}
+	return { firstName: "", lastName: "" };
 }
 
 function pickInviteHeadline(chunk: string): string {
