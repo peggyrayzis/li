@@ -14,6 +14,9 @@ importers:
       commander:
         specifier: ^14.0.3
         version: 14.0.3
+      dotenv:
+        specifier: ^17.2.3
+        version: 17.2.3
       json5:
         specifier: ^2.2.3
         version: 2.2.3
@@ -432,6 +435,10 @@ packages:
   commander@14.0.3:
     resolution: {integrity: sha512-H+y0Jo/T1RZ9qPP4Eh1pkcQcLRglraJaSLoyOtHxu6AapkjWVCy2Sit1QQ4x3Dng8qDlSsZEet7g5Pq06MvTgw==}
     engines: {node: '>=20'}
+
+  dotenv@17.2.3:
+    resolution: {integrity: sha512-JVUnt+DUIzu87TABbhPmNfVdBDt18BLOWjMUFJMSi/Qqg7NTYtabbvSNJGOJ7afbRuv9D/lngizHtP7QyLQ+9w==}
+    engines: {node: '>=12'}
 
   es-module-lexer@1.7.0:
     resolution: {integrity: sha512-jEQoCwk8hyb2AZziIOLhDqpm5+2ww5uIE6lkO/6jcOCusfk6LhMHpXXfBLXTZ7Ydyt0j4VoUQv6uGNYbdW+kBA==}
@@ -865,6 +872,8 @@ snapshots:
   chai@6.2.2: {}
 
   commander@14.0.3: {}
+
+  dotenv@17.2.3: {}
 
   es-module-lexer@1.7.0: {}
 

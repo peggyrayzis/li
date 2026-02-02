@@ -4,6 +4,7 @@
  * Cookie auth, Voyager API, agent-friendly.
  */
 
+import "dotenv/config";
 import { Command } from "commander";
 import pc from "picocolors";
 import { check } from "./commands/check.js";
@@ -14,7 +15,7 @@ import { listConversations, readConversation } from "./commands/messages.js";
 import { profile } from "./commands/profile.js";
 import { send } from "./commands/send.js";
 import { whoami } from "./commands/whoami.js";
-import { resolveCredentials } from "./lib/auth.js";
+import { type BrowserSource, resolveCredentials } from "./lib/auth.js";
 
 const program = new Command();
 
@@ -24,7 +25,11 @@ program
 	.version("0.1.0")
 	.option("--li-at <token>", "LinkedIn li_at cookie token")
 	.option("--jsessionid <token>", "LinkedIn JSESSIONID cookie token")
-	.option("--cookie-source <source>", "Cookie source: chrome (explicit) or auto (default)", "auto");
+	.option(
+		"--cookie-source <source>",
+		"Cookie source: chrome, safari, or comma-separated (e.g., chrome,safari). Default: auto",
+		"auto",
+	);
 
 /**
  * Handle errors consistently across all commands.
@@ -36,7 +41,29 @@ function handleError(error: unknown): never {
 }
 
 /**
- * Get credentials from CLI options, environment, or Chrome cookies.
+ * Parse cookie source option into array of browser sources.
+ */
+function parseCookieSource(source?: string): BrowserSource[] | undefined {
+	if (!source || source === "none") {
+		return undefined;
+	}
+	if (source === "auto") {
+		// Default: try Chrome and Safari
+		return ["chrome", "safari"];
+	}
+	// Parse comma-separated list
+	const browsers = source.split(",").map((s) => s.trim().toLowerCase());
+	const valid: BrowserSource[] = [];
+	for (const b of browsers) {
+		if (b === "chrome" || b === "safari") {
+			valid.push(b);
+		}
+	}
+	return valid.length > 0 ? valid : undefined;
+}
+
+/**
+ * Get credentials from CLI options, environment, or browser cookies.
  * Follows Bird's pattern: CLI args > env vars > browser cookies (auto-fallback).
  */
 async function getCredentials(options: {
@@ -44,9 +71,7 @@ async function getCredentials(options: {
 	jsessionid?: string;
 	cookieSource?: string;
 }) {
-	// Determine cookie source: explicit chrome, or auto-fallback (default)
-	const cookieSource: "chrome"[] | undefined =
-		options.cookieSource === "chrome" || options.cookieSource === "auto" ? ["chrome"] : undefined;
+	const cookieSource = parseCookieSource(options.cookieSource);
 
 	const result = await resolveCredentials({
 		liAt: options.liAt,

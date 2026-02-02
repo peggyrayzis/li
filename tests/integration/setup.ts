@@ -5,6 +5,7 @@
  * They require real LinkedIn credentials via environment variables.
  */
 
+import "dotenv/config";
 import { type LinkedInCredentials, resolveCredentials } from "../../src/lib/auth.js";
 
 /**
@@ -35,7 +36,10 @@ export async function getCredentials(): Promise<LinkedInCredentials> {
 		return cachedCredentials;
 	}
 
-	const result = await resolveCredentials({});
+	// Prefer env vars, fall back to browser cookies
+	const result = await resolveCredentials({
+		cookieSource: process.env.LINKEDIN_LI_AT ? undefined : ["chrome", "safari"],
+	});
 	cachedCredentials = result.credentials;
 	return cachedCredentials;
 }

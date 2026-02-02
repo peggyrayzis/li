@@ -17,10 +17,12 @@ export interface LinkedInCredentials {
 	source: string;
 }
 
+export type BrowserSource = "chrome" | "safari";
+
 export interface CredentialsOptions {
 	liAt?: string;
 	jsessionId?: string;
-	cookieSource?: "chrome"[];
+	cookieSource?: BrowserSource[];
 	chromeProfileDir?: string;
 }
 
@@ -45,19 +47,32 @@ function findCookieValue(cookies: Cookie[], name: string): string | undefined {
 	return cookie?.value;
 }
 
-interface ChromeCookieResult {
+interface BrowserCookieResult {
 	liAt?: string;
 	jsessionId?: string;
+	allCookies?: string;
 	warnings: string[];
 }
 
-async function extractChromeCookies(profileDir?: string): Promise<ChromeCookieResult> {
+/**
+ * Build a full cookie header string from all cookies.
+ */
+function buildFullCookieHeader(cookies: Cookie[]): string {
+	return cookies
+		.map((c) => `${c.name}=${c.value}`)
+		.join("; ");
+}
+
+async function extractBrowserCookies(
+	browsers: BrowserSource[],
+	profileDir?: string,
+): Promise<BrowserCookieResult> {
 	const warnings: string[] = [];
 
 	try {
 		const result = await getCookies({
 			url: LINKEDIN_URL,
-			browsers: ["chrome"],
+			browsers: browsers,
 			profile: profileDir,
 		});
 
@@ -67,13 +82,15 @@ async function extractChromeCookies(profileDir?: string): Promise<ChromeCookieRe
 
 		const liAt = findCookieValue(result.cookies, LI_AT_COOKIE);
 		const jsessionId = findCookieValue(result.cookies, JSESSIONID_COOKIE);
+		const allCookies = result.cookies.length > 0 ? buildFullCookieHeader(result.cookies) : undefined;
 
 		if (jsessionId) {
-			return { liAt, jsessionId: stripQuotes(jsessionId), warnings };
+			return { liAt, jsessionId: stripQuotes(jsessionId), allCookies, warnings };
 		}
-		return { liAt, jsessionId, warnings };
+		return { liAt, jsessionId, allCookies, warnings };
 	} catch {
-		return { warnings: ["Failed to extract Chrome cookies"] };
+		const browserList = browsers.join(", ");
+		return { warnings: [`Failed to extract cookies from: ${browserList}`] };
 	}
 }
 
@@ -84,6 +101,7 @@ export async function resolveCredentials(options: CredentialsOptions): Promise<C
 	let jsessionId: string | undefined = options.jsessionId
 		? stripQuotes(options.jsessionId)
 		: undefined;
+	let allCookies: string | undefined;
 	let source = "";
 
 	// Check CLI flags first
@@ -98,12 +116,16 @@ export async function resolveCredentials(options: CredentialsOptions): Promise<C
 		const envJsession = process.env.LINKEDIN_JSESSIONID
 			? stripQuotes(process.env.LINKEDIN_JSESSIONID)
 			: undefined;
+		const envAllCookies = process.env.LINKEDIN_COOKIES;
 
 		if (!liAt && envLiAt) {
 			liAt = envLiAt;
 		}
 		if (!jsessionId && envJsession) {
 			jsessionId = envJsession;
+		}
+		if (envAllCookies) {
+			allCookies = envAllCookies;
 		}
 
 		// Determine source
@@ -119,20 +141,27 @@ export async function resolveCredentials(options: CredentialsOptions): Promise<C
 			source = "env";
 		}
 
-		// Try Chrome cookies if enabled and we don't have complete credentials
-		if (options.cookieSource?.includes("chrome") && (!liAt || !jsessionId)) {
-			const chromeResult = await extractChromeCookies(options.chromeProfileDir);
-			warnings.push(...chromeResult.warnings);
+		// Try browser cookies if enabled and we don't have complete credentials
+		if (options.cookieSource?.length && (!liAt || !jsessionId)) {
+			const browserResult = await extractBrowserCookies(
+				options.cookieSource,
+				options.chromeProfileDir,
+			);
+			warnings.push(...browserResult.warnings);
 
-			if (!liAt && chromeResult.liAt) {
-				liAt = chromeResult.liAt;
+			if (!liAt && browserResult.liAt) {
+				liAt = browserResult.liAt;
 			}
-			if (!jsessionId && chromeResult.jsessionId) {
-				jsessionId = chromeResult.jsessionId;
+			if (!jsessionId && browserResult.jsessionId) {
+				jsessionId = browserResult.jsessionId;
+			}
+			if (browserResult.allCookies) {
+				allCookies = browserResult.allCookies;
 			}
 
-			if (chromeResult.liAt || chromeResult.jsessionId) {
-				source = source ? `${source}+chrome` : "chrome";
+			if (browserResult.liAt || browserResult.jsessionId) {
+				const browserSource = options.cookieSource.join("+");
+				source = source ? `${source}+${browserSource}` : browserSource;
 			}
 		}
 	}
@@ -150,7 +179,8 @@ export async function resolveCredentials(options: CredentialsOptions): Promise<C
 		);
 	}
 
-	const cookieHeader = buildCookieHeader(liAt, jsessionId);
+	// Use full cookie string if available, otherwise build minimal one
+	const cookieHeader = allCookies || buildCookieHeader(liAt, jsessionId);
 	const csrfToken = jsessionId; // CSRF token is JSESSIONID without quotes
 
 	return {

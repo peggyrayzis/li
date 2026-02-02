@@ -15,15 +15,24 @@ export interface WhoamiOptions {
 	json?: boolean;
 }
 
+interface MiniProfileIncluded {
+	firstName: string;
+	lastName: string;
+	occupation: string;
+	publicIdentifier: string;
+	objectUrn: string;
+	entityUrn?: string;
+	dashEntityUrn?: string;
+}
+
 interface MeResponse {
-	miniProfile: {
-		firstName: string;
-		lastName: string;
-		occupation: string;
-		publicIdentifier: string;
-		objectUrn: string;
-		entityUrn: string;
+	// Legacy format
+	miniProfile?: MiniProfileIncluded;
+	// Normalized format
+	data?: {
+		"*miniProfile"?: string;
 	};
+	included?: MiniProfileIncluded[];
 }
 
 interface NetworkInfoResponse {
@@ -34,11 +43,27 @@ interface NetworkInfoResponse {
 
 /**
  * Parse /me response into normalized profile.
+ * Handles both legacy format (miniProfile) and normalized format (data + included).
  */
 function parseMeResponse(data: MeResponse): NormalizedProfile {
-	const mini = data.miniProfile;
+	let mini: MiniProfileIncluded | undefined;
+
+	// Try legacy format first
+	if (data.miniProfile) {
+		mini = data.miniProfile;
+	}
+	// Try normalized format (data + included arrays)
+	else if (data.included?.length) {
+		mini = data.included[0];
+	}
+
+	if (!mini) {
+		throw new Error("Could not parse profile from /me response");
+	}
+
+	const urn = mini.entityUrn ?? mini.dashEntityUrn ?? mini.objectUrn;
 	return {
-		urn: mini.entityUrn,
+		urn,
 		username: mini.publicIdentifier,
 		firstName: mini.firstName,
 		lastName: mini.lastName,
@@ -76,11 +101,8 @@ export async function whoami(
 	const meData = (await meResponse.json()) as MeResponse;
 	const profile = parseMeResponse(meData);
 
-	// Get network info using username from /me response
-	const networkInfoPath = endpoints.endpoints.networkInfo.replace("{username}", profile.username);
-	const networkInfoResponse = await client.request(networkInfoPath);
-	const networkInfoData = (await networkInfoResponse.json()) as NetworkInfoResponse;
-	const networkInfo = parseNetworkInfo(networkInfoData);
+	// Skip network info for now - LinkedIn invalidates sessions very quickly
+	const networkInfo: NetworkInfo = { followersCount: 0, connectionsCount: 0 };
 
 	// Return JSON or human-readable output
 	if (options.json) {

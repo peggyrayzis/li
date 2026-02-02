@@ -21,7 +21,12 @@
     "pre-commit": "bash .claude/hooks/pre-commit.sh",
     "validate": "pnpm typecheck && pnpm lint && pnpm test:run && pnpm de-slop"
   },
-  "keywords": ["linkedin", "cli", "voyager", "api"],
+  "keywords": [
+    "linkedin",
+    "cli",
+    "voyager",
+    "api"
+  ],
   "author": "Peggy Rayzis",
   "license": "MIT",
   "engines": {
@@ -39,6 +44,7 @@
   "dependencies": {
     "@steipete/sweet-cookie": "^0.1.0",
     "commander": "^14.0.3",
+    "dotenv": "^17.2.3",
     "json5": "^2.2.3",
     "picocolors": "^1.1.1"
   }
