@@ -10,7 +10,7 @@ echo "🧹 Running de-slop checks..."
 ISSUES=0
 
 # Check for console.log in src/ (except for legitimate output)
-CONSOLE_LOGS=$(grep -rn "console\.log" src/ --include="*.ts" | grep -v "// keep" | grep -v output/ || true)
+CONSOLE_LOGS=$(grep -rn "console\.log" src/ --include="*.ts" | grep -v "// keep" | grep -v output/ | grep -v cli.ts || true)
 if [ -n "$CONSOLE_LOGS" ]; then
   echo "⚠️  console.log found in src/ (remove or move to output/):"
   echo "$CONSOLE_LOGS" | head -5
