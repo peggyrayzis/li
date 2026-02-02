@@ -20,12 +20,12 @@ const DEBUG_MESSAGES =
 const DEBUG_MESSAGES_RESPONSE =
 	process.env.LI_DEBUG_MESSAGES_RESPONSE === "1" ||
 	process.env.LI_DEBUG_MESSAGES_RESPONSE === "true";
-const MESSAGING_QUERY_ID_OPERATIONS = [
+const CONVERSATION_QUERY_ID_OPERATIONS = [
 	"messengerConversationsBySyncToken",
 	"messengerConversations",
 	"voyagerMessagingDashConversations",
-	"voyagerMessagingDashMessagingSettings",
 ] as const;
+const SETTINGS_QUERY_ID_OPERATION = "voyagerMessagingDashMessagingSettings";
 
 function debugMessages(message: string): void {
 	if (!DEBUG_MESSAGES) {
@@ -158,7 +158,10 @@ export async function listConversations(
 		}
 
 		try {
-			await runtimeQueryIds.refreshFromLinkedIn(client, [...MESSAGING_QUERY_ID_OPERATIONS]);
+			await runtimeQueryIds.refreshFromLinkedIn(client, [
+				...CONVERSATION_QUERY_ID_OPERATIONS,
+				SETTINGS_QUERY_ID_OPERATION,
+			]);
 			const refreshed = await resolveMessagingQueryId();
 			const refreshedSnapshot = await runtimeQueryIds.getSnapshotInfo();
 			const refreshedHeaders = refreshedSnapshot?.snapshot.headers ?? {};
@@ -185,7 +188,10 @@ export async function listConversations(
 				);
 			}
 
-			await runtimeQueryIds.refreshFromHar([...MESSAGING_QUERY_ID_OPERATIONS], harPath);
+			await runtimeQueryIds.refreshFromHar(
+				[...CONVERSATION_QUERY_ID_OPERATIONS, SETTINGS_QUERY_ID_OPERATION],
+				harPath,
+			);
 			const har = await resolveMessagingQueryId();
 			const harSnapshot = await runtimeQueryIds.getSnapshotInfo();
 			const harHeaders = harSnapshot?.snapshot.headers ?? {};
@@ -296,16 +302,11 @@ async function resolveMessagingQueryId(): Promise<{ queryId: string; operation: 
 		return { queryId, operation };
 	}
 
-	for (const operation of MESSAGING_QUERY_ID_OPERATIONS) {
+	for (const operation of CONVERSATION_QUERY_ID_OPERATIONS) {
 		const cached = await runtimeQueryIds.getId(operation);
 		if (cached) {
 			return { queryId: cached, operation };
 		}
-	}
-
-	const messageSettingsId = await runtimeQueryIds.getId("voyagerMessagingDashMessagingSettings");
-	if (messageSettingsId) {
-		return { queryId: messageSettingsId, operation: "voyagerMessagingDashMessagingSettings" };
 	}
 
 	const harPath = process.env.LINKEDIN_MESSAGING_HAR ?? "www.linkedin.com.fullv3.har";
@@ -331,10 +332,7 @@ async function resolveMessagingQueryId(): Promise<{ queryId: string; operation: 
 				if (!operation) {
 					continue;
 				}
-				if (
-					MESSAGING_QUERY_ID_OPERATIONS.includes(operation as never) ||
-					operation === "voyagerMessagingDashMessagingSettings"
-				) {
+				if (CONVERSATION_QUERY_ID_OPERATIONS.includes(operation as never)) {
 					return { queryId, operation };
 				}
 			}

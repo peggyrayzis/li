@@ -530,6 +530,27 @@ function extractQueryIdFromBundleText(
 	return null;
 }
 
+async function fetchQueryIdsFromSettings(
+	client: LinkedInClient,
+	settingsQueryId: string,
+	operations: string[],
+): Promise<Record<string, string>> {
+	try {
+		const response = await client.request(
+			`/graphql?includeWebMetadata=true&variables=()&queryId=${settingsQueryId}`,
+			{ method: "GET" },
+		);
+		const text = await response.text();
+		const extracted = extractQueryIdFromText(text, operations);
+		if (extracted) {
+			return { [extracted.operation]: extracted.queryId };
+		}
+	} catch {
+		// Ignore settings fetch failures.
+	}
+	return {};
+}
+
 export const runtimeQueryIds = {
 	cachePath: getCachePath(),
 
@@ -593,9 +614,20 @@ export const runtimeQueryIds = {
 	): Promise<QueryIdSnapshot> {
 		const discovery = await discoverBundles(client, operations);
 		if (discovery.directQueryId) {
+			const ids: Record<string, string> = {
+				[discovery.directQueryId.operation]: discovery.directQueryId.queryId,
+			};
+			if (discovery.directQueryId.operation === "voyagerMessagingDashMessagingSettings") {
+				const settingsIds = await fetchQueryIdsFromSettings(
+					client,
+					discovery.directQueryId.queryId,
+					operations,
+				);
+				Object.assign(ids, settingsIds);
+			}
 			const snapshot: QueryIdSnapshot = {
 				fetchedAt: new Date().toISOString(),
-				ids: { [discovery.directQueryId.operation]: discovery.directQueryId.queryId },
+				ids,
 				discovery: { harPath: "linkedIn-html" },
 			};
 			const cachePath = getCachePath();
