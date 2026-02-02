@@ -30,6 +30,24 @@ interface ProfileLookupResponse {
 	}> | null;
 }
 
+interface MeResponse {
+	miniProfile?: {
+		publicIdentifier?: string;
+		objectUrn?: string;
+		entityUrn?: string;
+		dashEntityUrn?: string;
+	};
+	data?: {
+		"*miniProfile"?: string;
+	};
+	included?: Array<{
+		publicIdentifier?: string;
+		objectUrn?: string;
+		entityUrn?: string;
+		dashEntityUrn?: string;
+	}> | null;
+}
+
 /**
  * Resolve a recipient identifier to a profile URN.
  *
@@ -117,6 +135,27 @@ async function lookupProfileByUsername(
 	const data = (await response.json()) as ProfileLookupResponse;
 
 	if (!data.elements || data.elements.length === 0) {
+		const meResponse = await client.request("/me", { method: "GET" });
+		const meData = (await meResponse.json()) as MeResponse;
+		const meMini =
+			meData.miniProfile ??
+			(meData.included?.find((item) => item.publicIdentifier) ??
+				(meData.included && meData.included.length > 0 ? meData.included[0] : undefined));
+		const meUsername = meMini?.publicIdentifier ?? "";
+		const meProfileUrn = normalizeProfileUrn(
+			meMini?.entityUrn ?? meMini?.dashEntityUrn ?? "",
+		);
+		const meMemberUrn = meMini?.objectUrn ?? "";
+
+		if (meUsername === username) {
+			if (meProfileUrn) {
+				return { username: meUsername, urn: meProfileUrn };
+			}
+			if (meMemberUrn) {
+				return lookupProfileByUrn(client, meMemberUrn);
+			}
+		}
+
 		throw new Error(`Profile not found: ${username}`);
 	}
 
@@ -124,4 +163,14 @@ async function lookupProfileByUsername(
 		username: data.elements[0].publicIdentifier ?? username,
 		urn: data.elements[0].entityUrn,
 	};
+}
+
+function normalizeProfileUrn(urn: string): string {
+	if (!urn) {
+		return "";
+	}
+	if (urn.startsWith("urn:li:fs_miniProfile:")) {
+		return urn.replace("urn:li:fs_miniProfile:", "urn:li:fsd_profile:");
+	}
+	return urn;
 }

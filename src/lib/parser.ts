@@ -121,19 +121,39 @@ function parseMiniProfile(
  * @returns Normalized profile object
  */
 export function parseProfile(raw: Record<string, unknown>): NormalizedProfile {
-	const firstName = extractLocalized(raw.firstName as LocalizedField);
-	const lastName = extractLocalized(raw.lastName as LocalizedField);
-	const username = (raw.publicIdentifier as string) || "";
-	const industry = extractLocalized(raw.industryName as LocalizedField);
-	const summary = extractLocalized(raw.summary as LocalizedField);
+	const dataBag = raw.data as Record<string, unknown> | undefined;
+	const included = raw.included as Array<Record<string, unknown>> | undefined;
+
+	const profileUrn =
+		(dataBag?.["*profile"] as string | undefined) ??
+		(dataBag?.profile as string | undefined) ??
+		(raw.profile as Record<string, unknown>)?.entityUrn ??
+		(raw.entityUrn as string | undefined);
+
+	const includedProfile =
+		included?.find((item) => item.entityUrn === profileUrn) ??
+		included?.find((item) => typeof item.publicIdentifier === "string") ??
+		undefined;
+
+	const dashProfile =
+		(raw.profile as Record<string, unknown>) ||
+		(dataBag?.profile as Record<string, unknown>) ||
+		includedProfile ||
+		raw;
+
+	const firstName = extractLocalized(dashProfile.firstName as LocalizedField);
+	const lastName = extractLocalized(dashProfile.lastName as LocalizedField);
+	const username = (dashProfile.publicIdentifier as string) || "";
+	const industry = extractLocalized(dashProfile.industryName as LocalizedField);
+	const summary = extractLocalized(dashProfile.summary as LocalizedField);
 
 	return {
-		urn: (raw.entityUrn as string) || "",
+		urn: (dashProfile.entityUrn as string) || profileUrn || "",
 		username,
 		firstName,
 		lastName,
-		headline: extractLocalized(raw.headline as LocalizedField),
-		location: extractLocalized(raw.locationName as LocalizedField),
+		headline: extractLocalized(dashProfile.headline as LocalizedField),
+		location: extractLocalized(dashProfile.locationName as LocalizedField),
 		profileUrl: `${LINKEDIN_PROFILE_BASE_URL}${username}`,
 		...(industry && { industry }),
 		...(summary && { summary }),

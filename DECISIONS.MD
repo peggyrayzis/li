@@ -98,4 +98,12 @@ This file tracks architectural and implementation decisions made during developm
 
 ---
 
+### 2026-02-02 Profile Fetch - Move to Voyager Dash Endpoint
+**Context**: `/identity/profiles/{username}/profileView` returns 410 and is no longer usable.
+**Decision**: Fetch profiles via `/identity/dash/profiles/{urn}?decorationId=com.linkedin.voyager.dash.deco.identity.profile.FullProfile-76`, resolving username/URL/URN to a profile URN first using `q=memberIdentity`.
+**Reason**: HAR shows the dash endpoint returning full profile data with a decorationId while the legacy profileView endpoint is deprecated.
+**Consequences**: Profile command now performs a lookup request before fetching the full profile payload; decorationId may need updates if LinkedIn changes the schema.
+
+---
+
 <!-- Add new decisions above this line -->

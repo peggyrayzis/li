@@ -3,7 +3,19 @@ import { profile } from "../../../src/commands/profile.js";
 import type { LinkedInCredentials } from "../../../src/lib/auth.js";
 
 // Load fixture
-import profileFixture from "../../fixtures/profile.json";
+import profileDashFixture from "../../fixtures/profile-dash.json";
+
+const PROFILE_LOOKUP_FIXTURE = {
+	elements: [
+		{
+			entityUrn: "urn:li:fsd_profile:ABC123",
+			publicIdentifier: "peggyrayzis",
+		},
+	],
+};
+
+const PROFILE_DECORATION_ID =
+	"com.linkedin.voyager.dash.deco.identity.profile.FullProfile-76";
 
 describe("profile command", () => {
 	const mockCredentials: LinkedInCredentials = {
@@ -27,62 +39,116 @@ describe("profile command", () => {
 
 	describe("input parsing", () => {
 		it("handles plain username", async () => {
-			mockFetch.mockResolvedValueOnce({
-				ok: true,
-				status: 200,
-				json: async () => profileFixture,
-			});
+			mockFetch
+				.mockResolvedValueOnce({
+					ok: true,
+					status: 200,
+					json: async () => PROFILE_LOOKUP_FIXTURE,
+				})
+				.mockResolvedValueOnce({
+					ok: true,
+					status: 200,
+					json: async () => profileDashFixture,
+				});
 
 			await profile(mockCredentials, "peggyrayzis");
 
 			expect(mockFetch).toHaveBeenCalledWith(
-				expect.stringContaining("/identity/profiles/peggyrayzis/profileView"),
+				expect.stringContaining(
+					"/identity/dash/profiles?q=memberIdentity&memberIdentity=peggyrayzis",
+				),
+				expect.any(Object),
+			);
+			expect(mockFetch).toHaveBeenCalledWith(
+				expect.stringContaining(
+					`/identity/dash/profiles/urn%3Ali%3Afsd_profile%3AABC123?decorationId=${PROFILE_DECORATION_ID}`,
+				),
 				expect.any(Object),
 			);
 		});
 
 		it("handles profile URL", async () => {
-			mockFetch.mockResolvedValueOnce({
-				ok: true,
-				status: 200,
-				json: async () => profileFixture,
-			});
+			mockFetch
+				.mockResolvedValueOnce({
+					ok: true,
+					status: 200,
+					json: async () => PROFILE_LOOKUP_FIXTURE,
+				})
+				.mockResolvedValueOnce({
+					ok: true,
+					status: 200,
+					json: async () => profileDashFixture,
+				});
 
 			await profile(mockCredentials, "https://www.linkedin.com/in/peggyrayzis");
 
 			expect(mockFetch).toHaveBeenCalledWith(
-				expect.stringContaining("/identity/profiles/peggyrayzis/profileView"),
+				expect.stringContaining(
+					"/identity/dash/profiles?q=memberIdentity&memberIdentity=peggyrayzis",
+				),
+				expect.any(Object),
+			);
+			expect(mockFetch).toHaveBeenCalledWith(
+				expect.stringContaining(
+					`/identity/dash/profiles/urn%3Ali%3Afsd_profile%3AABC123?decorationId=${PROFILE_DECORATION_ID}`,
+				),
 				expect.any(Object),
 			);
 		});
 
 		it("handles profile URL with trailing slash", async () => {
-			mockFetch.mockResolvedValueOnce({
-				ok: true,
-				status: 200,
-				json: async () => profileFixture,
-			});
+			mockFetch
+				.mockResolvedValueOnce({
+					ok: true,
+					status: 200,
+					json: async () => PROFILE_LOOKUP_FIXTURE,
+				})
+				.mockResolvedValueOnce({
+					ok: true,
+					status: 200,
+					json: async () => profileDashFixture,
+				});
 
 			await profile(mockCredentials, "https://www.linkedin.com/in/peggyrayzis/");
 
 			expect(mockFetch).toHaveBeenCalledWith(
-				expect.stringContaining("/identity/profiles/peggyrayzis/profileView"),
+				expect.stringContaining(
+					"/identity/dash/profiles?q=memberIdentity&memberIdentity=peggyrayzis",
+				),
+				expect.any(Object),
+			);
+			expect(mockFetch).toHaveBeenCalledWith(
+				expect.stringContaining(
+					`/identity/dash/profiles/urn%3Ali%3Afsd_profile%3AABC123?decorationId=${PROFILE_DECORATION_ID}`,
+				),
 				expect.any(Object),
 			);
 		});
 
 		it("handles profile URN using profileByUrn endpoint", async () => {
-			mockFetch.mockResolvedValueOnce({
-				ok: true,
-				status: 200,
-				json: async () => profileFixture,
-			});
+			mockFetch
+				.mockResolvedValueOnce({
+					ok: true,
+					status: 200,
+					json: async () => PROFILE_LOOKUP_FIXTURE,
+				})
+				.mockResolvedValueOnce({
+					ok: true,
+					status: 200,
+					json: async () => profileDashFixture,
+				});
 
 			await profile(mockCredentials, "urn:li:fsd_profile:ABC123");
 
 			expect(mockFetch).toHaveBeenCalledWith(
 				expect.stringContaining(
-					"/identity/dash/profiles?q=memberIdentity&memberIdentity=urn:li:fsd_profile:ABC123",
+					"/identity/dash/profiles?q=memberIdentity&memberIdentity=urn%3Ali%3Afsd_profile%3AABC123",
+				),
+				expect.any(Object),
+			);
+			expect(mockFetch).toHaveBeenCalledWith(
+				expect.stringContaining(
+					`/identity/dash/profiles/urn%3Ali%3Afsd_profile%3AABC123?decorationId=${PROFILE_DECORATION_ID}`,
 				),
 				expect.any(Object),
 			);
@@ -91,11 +157,17 @@ describe("profile command", () => {
 
 	describe("human output", () => {
 		it("returns formatted profile with name, headline, location", async () => {
-			mockFetch.mockResolvedValueOnce({
-				ok: true,
-				status: 200,
-				json: async () => profileFixture,
-			});
+			mockFetch
+				.mockResolvedValueOnce({
+					ok: true,
+					status: 200,
+					json: async () => PROFILE_LOOKUP_FIXTURE,
+				})
+				.mockResolvedValueOnce({
+					ok: true,
+					status: 200,
+					json: async () => profileDashFixture,
+				});
 
 			const result = await profile(mockCredentials, "peggyrayzis");
 
@@ -114,11 +186,17 @@ describe("profile command", () => {
 
 	describe("JSON output", () => {
 		it("returns JSON when --json flag is passed", async () => {
-			mockFetch.mockResolvedValueOnce({
-				ok: true,
-				status: 200,
-				json: async () => profileFixture,
-			});
+			mockFetch
+				.mockResolvedValueOnce({
+					ok: true,
+					status: 200,
+					json: async () => PROFILE_LOOKUP_FIXTURE,
+				})
+				.mockResolvedValueOnce({
+					ok: true,
+					status: 200,
+					json: async () => profileDashFixture,
+				});
 
 			const result = await profile(mockCredentials, "peggyrayzis", { json: true });
 

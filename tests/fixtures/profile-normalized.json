@@ -1,0 +1,31 @@
+{
+  "data": {
+    "*profile": "urn:li:fsd_profile:ABC123"
+  },
+  "included": [
+    {
+      "entityUrn": "urn:li:fsd_profile:ABC123",
+      "publicIdentifier": "peggyrayzis",
+      "firstName": {
+        "localized": {
+          "en_US": "Peggy"
+        }
+      },
+      "lastName": {
+        "localized": {
+          "en_US": "Rayzis"
+        }
+      },
+      "headline": {
+        "localized": {
+          "en_US": "Developer marketing for devtools and AI founders"
+        }
+      },
+      "locationName": {
+        "localized": {
+          "en_US": "San Francisco Bay Area"
+        }
+      }
+    }
+  ]
+}

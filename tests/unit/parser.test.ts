@@ -16,6 +16,8 @@ import connectionsFixture from "../fixtures/connections.json";
 import conversationsFixture from "../fixtures/conversations.json";
 import invitationsFixture from "../fixtures/invitations.json";
 import profileFixture from "../fixtures/profile.json";
+import profileDashFixture from "../fixtures/profile-dash.json";
+import profileNormalizedFixture from "../fixtures/profile-normalized.json";
 
 describe("parser", () => {
 	describe("extractLocalized", () => {
@@ -87,6 +89,26 @@ describe("parser", () => {
 			expect(result.summary).toBe(
 				"I help developer tools companies with positioning, messaging, and go-to-market strategy.",
 			);
+		});
+
+		it("parses profile wrapped in dash response", () => {
+			const result = parseProfile(profileDashFixture);
+
+			expect(result.firstName).toBe("Peggy");
+			expect(result.lastName).toBe("Rayzis");
+			expect(result.headline).toBe("Developer marketing for devtools and AI founders");
+			expect(result.username).toBe("peggyrayzis");
+			expect(result.urn).toBe("urn:li:fsd_profile:ABC123");
+		});
+
+		it("parses normalized profile payload with included data", () => {
+			const result = parseProfile(profileNormalizedFixture);
+
+			expect(result.firstName).toBe("Peggy");
+			expect(result.lastName).toBe("Rayzis");
+			expect(result.headline).toBe("Developer marketing for devtools and AI founders");
+			expect(result.username).toBe("peggyrayzis");
+			expect(result.urn).toBe("urn:li:fsd_profile:ABC123");
 		});
 
 		it("handles missing optional fields", () => {

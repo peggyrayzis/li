@@ -62,6 +62,39 @@ describe("recipient", () => {
 				);
 			});
 
+			it("falls back to /me when lookup is empty and username matches", async () => {
+				mockClient.request
+					.mockResolvedValueOnce({
+						json: () => Promise.resolve({ elements: [] }),
+					})
+					.mockResolvedValueOnce({
+						json: () =>
+							Promise.resolve({
+								miniProfile: {
+									publicIdentifier: "peggyrayzis",
+									entityUrn: "urn:li:fsd_profile:ACoAABcd1234",
+								},
+							}),
+					});
+
+				const result = await resolveRecipient(
+					mockClient as unknown as LinkedInClient,
+					"peggyrayzis",
+				);
+
+				expect(result).toEqual({
+					username: "peggyrayzis",
+					urn: "urn:li:fsd_profile:ACoAABcd1234",
+				});
+				expect(mockClient.request).toHaveBeenNthCalledWith(
+					1,
+					"/identity/dash/profiles?q=memberIdentity&memberIdentity=peggyrayzis",
+					{ method: "GET" },
+				);
+				expect(mockClient.request).toHaveBeenNthCalledWith(2, "/me", { method: "GET" });
+				expect(mockClient.request).toHaveBeenCalledTimes(2);
+			});
+
 			it("trims whitespace from username", async () => {
 				mockClient.request.mockResolvedValueOnce({
 					json: () =>
@@ -87,9 +120,19 @@ describe("recipient", () => {
 			});
 
 			it("throws error when profile not found for username", async () => {
-				mockClient.request.mockResolvedValueOnce({
-					json: () => Promise.resolve({ elements: [] }),
-				});
+				mockClient.request
+					.mockResolvedValueOnce({
+						json: () => Promise.resolve({ elements: [] }),
+					})
+					.mockResolvedValueOnce({
+						json: () =>
+							Promise.resolve({
+								miniProfile: {
+									publicIdentifier: "someone-else",
+									entityUrn: "urn:li:fsd_profile:OTHER",
+								},
+							}),
+					});
 
 				await expect(
 					resolveRecipient(mockClient as unknown as LinkedInClient, "unknownuser"),
@@ -312,13 +355,77 @@ describe("recipient", () => {
 			});
 
 			it("handles response with null elements", async () => {
-				mockClient.request.mockResolvedValueOnce({
-					json: () => Promise.resolve({ elements: null }),
-				});
+				mockClient.request
+					.mockResolvedValueOnce({
+						json: () => Promise.resolve({ elements: null }),
+					})
+					.mockResolvedValueOnce({
+						json: () =>
+							Promise.resolve({
+								miniProfile: {
+									publicIdentifier: "someone-else",
+									entityUrn: "urn:li:fsd_profile:OTHER",
+								},
+							}),
+					});
 
 				await expect(
 					resolveRecipient(mockClient as unknown as LinkedInClient, "unknownuser"),
 				).rejects.toThrow("Profile not found: unknownuser");
+			});
+
+			it("normalizes fs_miniProfile URN from /me response", async () => {
+				mockClient.request
+					.mockResolvedValueOnce({
+						json: () => Promise.resolve({ elements: [] }),
+					})
+					.mockResolvedValueOnce({
+						json: () =>
+							Promise.resolve({
+								miniProfile: {
+									publicIdentifier: "peggyrayzis",
+									entityUrn: "urn:li:fs_miniProfile:ACoAABcd1234",
+								},
+							}),
+					});
+
+				const result = await resolveRecipient(
+					mockClient as unknown as LinkedInClient,
+					"peggyrayzis",
+				);
+
+				expect(result).toEqual({
+					username: "peggyrayzis",
+					urn: "urn:li:fsd_profile:ACoAABcd1234",
+				});
+			});
+
+			it("uses included miniProfile when /me is normalized", async () => {
+				mockClient.request
+					.mockResolvedValueOnce({
+						json: () => Promise.resolve({ elements: [] }),
+					})
+					.mockResolvedValueOnce({
+						json: () =>
+							Promise.resolve({
+								included: [
+									{
+										publicIdentifier: "peggyrayzis",
+										entityUrn: "urn:li:fsd_profile:ACoAABcd1234",
+									},
+								],
+							}),
+					});
+
+				const result = await resolveRecipient(
+					mockClient as unknown as LinkedInClient,
+					"peggyrayzis",
+				);
+
+				expect(result).toEqual({
+					username: "peggyrayzis",
+					urn: "urn:li:fsd_profile:ACoAABcd1234",
+				});
 			});
 		});
 	});
