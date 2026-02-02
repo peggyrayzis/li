@@ -277,7 +277,7 @@ describe("CLI", () => {
 	});
 
 	describe("connect command", () => {
-		it("calls connect with identifier", async () => {
+		it("blocks connect in v0.1", async () => {
 			mockConnect.mockResolvedValue("Connection request sent");
 			vi.resetModules();
 
@@ -291,13 +291,12 @@ describe("CLI", () => {
 				process.argv = originalArgv;
 			}
 
-			expect(mockConnect).toHaveBeenCalledWith(mockCredentials, "johndoe", {
-				json: undefined,
-				message: undefined,
-			});
+			expect(mockConnect).not.toHaveBeenCalled();
+			expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining("deferred to v0.2"));
+			expect(mockProcessExit).toHaveBeenCalledWith(1);
 		});
 
-		it("passes --note option", async () => {
+		it("blocks connect with --note in v0.1", async () => {
 			mockConnect.mockResolvedValue("Connection request sent");
 			vi.resetModules();
 
@@ -311,10 +310,9 @@ describe("CLI", () => {
 				process.argv = originalArgv;
 			}
 
-			expect(mockConnect).toHaveBeenCalledWith(mockCredentials, "johndoe", {
-				json: undefined,
-				message: "Nice to meet you!",
-			});
+			expect(mockConnect).not.toHaveBeenCalled();
+			expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining("deferred to v0.2"));
+			expect(mockProcessExit).toHaveBeenCalledWith(1);
 		});
 	});
 
@@ -350,9 +348,9 @@ describe("CLI", () => {
 				process.argv = originalArgv;
 			}
 
-			expect(mockAcceptInvite).toHaveBeenCalledWith(mockCredentials, "INV123", {
-				json: undefined,
-			});
+			expect(mockAcceptInvite).not.toHaveBeenCalled();
+			expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining("deferred to v0.2"));
+			expect(mockProcessExit).toHaveBeenCalledWith(1);
 		});
 	});
 
@@ -401,7 +399,7 @@ describe("CLI", () => {
 	});
 
 	describe("send command", () => {
-		it("sends message to recipient", async () => {
+		it("blocks send in v0.1", async () => {
 			mockSend.mockResolvedValue("Message sent");
 			vi.resetModules();
 
@@ -415,9 +413,9 @@ describe("CLI", () => {
 				process.argv = originalArgv;
 			}
 
-			expect(mockSend).toHaveBeenCalledWith(mockCredentials, "peggyrayzis", "Hello!", {
-				json: undefined,
-			});
+			expect(mockSend).not.toHaveBeenCalled();
+			expect(mockConsoleError).toHaveBeenCalledWith(expect.stringContaining("deferred to v0.2"));
+			expect(mockProcessExit).toHaveBeenCalledWith(1);
 		});
 	});
 

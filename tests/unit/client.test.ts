@@ -196,32 +196,50 @@ describe("LinkedInClient", () => {
 
 	describe("rate limiting", () => {
 		it("delays between consecutive requests", async () => {
+			const previousMin = process.env.LI_REQUEST_DELAY_MIN_MS;
+			const previousMax = process.env.LI_REQUEST_DELAY_MAX_MS;
+			process.env.LI_REQUEST_DELAY_MIN_MS = "2000";
+			process.env.LI_REQUEST_DELAY_MAX_MS = "2000";
+
 			mockFetch.mockResolvedValue({
 				ok: true,
 				status: 200,
 				json: async () => ({}),
 			});
 
-			const client = new LinkedInClient(mockCredentials);
+			try {
+				const client = new LinkedInClient(mockCredentials);
 
-			// First request should go immediately
-			const firstRequestPromise = client.request("/first");
-			await vi.advanceTimersByTimeAsync(0);
-			await firstRequestPromise;
+				// First request should go immediately
+				const firstRequestPromise = client.request("/first");
+				await vi.advanceTimersByTimeAsync(0);
+				await firstRequestPromise;
 
-			expect(mockFetch).toHaveBeenCalledTimes(1);
+				expect(mockFetch).toHaveBeenCalledTimes(1);
 
-			// Second request should be delayed (2-5 seconds random delay)
-			const secondRequestPromise = client.request("/second");
+				// Second request should be delayed (2 seconds)
+				const secondRequestPromise = client.request("/second");
 
-			// After 1 second, second request should not have been made
-			await vi.advanceTimersByTimeAsync(1000);
-			expect(mockFetch).toHaveBeenCalledTimes(1);
+				// After 1 second, second request should not have been made
+				await vi.advanceTimersByTimeAsync(1000);
+				expect(mockFetch).toHaveBeenCalledTimes(1);
 
-			// After 5 more seconds, it should definitely have gone through
-			await vi.advanceTimersByTimeAsync(5000);
-			await secondRequestPromise;
-			expect(mockFetch).toHaveBeenCalledTimes(2);
+				// After 2 seconds, it should go through
+				await vi.advanceTimersByTimeAsync(1000);
+				await secondRequestPromise;
+				expect(mockFetch).toHaveBeenCalledTimes(2);
+			} finally {
+				if (previousMin === undefined) {
+					delete process.env.LI_REQUEST_DELAY_MIN_MS;
+				} else {
+					process.env.LI_REQUEST_DELAY_MIN_MS = previousMin;
+				}
+				if (previousMax === undefined) {
+					delete process.env.LI_REQUEST_DELAY_MAX_MS;
+				} else {
+					process.env.LI_REQUEST_DELAY_MAX_MS = previousMax;
+				}
+			}
 		});
 	});
 
