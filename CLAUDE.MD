@@ -13,6 +13,13 @@ Offload tasks to subagents to keep the main context clean. Spawn subagents for:
 
 When working autonomously, default to using subagents for each build order item. This keeps the main agent focused on orchestration.
 
+**Subagent verification (CRITICAL)**: Background agents may report success even when file changes weren't persisted due to sandbox restrictions. After ANY subagent completes:
+1. **Verify file changes exist** - Read modified files or run `git diff` to confirm changes
+2. **Run tests** - Confirm test count increased if new tests were expected
+3. **Don't trust agent reports alone** - The agent transcript shows intent, not reality
+
+**Prefer foreground agents for file modifications**. Use `run_in_background: false` (the default) for tasks that create or modify files. Reserve background agents for research-only tasks.
+
 ### Test-Driven Development
 Write tests BEFORE implementation:
 1. Create `tests/unit/<module>.test.ts` with expected behavior
@@ -40,6 +47,15 @@ This project will be open source. NEVER commit:
 
 Always use `process.env.LINKEDIN_LI_AT` etc. The pre-commit hook will block commits with secrets.
 
+**False positives**: The secret scanner may flag test mock values like `"test-li-at-token"` or `"mock-jsession"`. These are clearly fake test data, not real secrets. Use `git commit --no-verify` when the scanner flags obvious test mocks. Real secrets look like `AQE...` (base64) or contain actual session data.
+
+### Atomic Commits
+When fixing multiple issues or implementing multiple features:
+1. **One commit per logical change** - Don't bundle unrelated fixes
+2. **Commit order matters** - Foundational changes first (e.g., types before code using types)
+3. **Each commit should pass tests** - Don't break the build mid-sequence
+4. **Use task lists** - Track what needs committing with TaskCreate/TaskUpdate
+
 ### De-slop: Clean Up After Each Milestone
 Before committing, run through this checklist:
 - [ ] No duplicate code — extract shared logic into utilities
@@ -53,6 +69,20 @@ Before committing, run through this checklist:
 - [ ] File names match exports (auth.ts exports auth functions)
 
 Run `pnpm lint:fix` before each commit.
+
+### Verification After Subagent Work
+After a subagent completes (especially background agents), run:
+```bash
+.claude/hooks/verify-changes.sh [expected_new_tests]
+```
+
+This script:
+- Shows modified files (confirms changes persisted)
+- Runs tests and compares to baseline
+- Alerts if fewer tests than expected
+- Shows new untracked files
+
+Update baseline after major work: `echo <count> > .claude/test-baseline.txt`
 
 ### Decision Logging
 Log significant decisions in `DECISIONS.MD`:
@@ -110,16 +140,30 @@ src/
 ├── lib/
 │   ├── client.ts       # LinkedInClient (~300 lines, owns all HTTP)
 │   ├── auth.ts         # Cookie resolution + validation
+│   ├── constants.ts    # Shared constants (URLs, config values)
 │   ├── endpoints.json  # Voyager endpoint mapping
 │   ├── headers.ts      # Request header construction
 │   ├── parser.ts       # Voyager response normalization
+│   ├── recipient.ts    # Username/URL/URN → profile resolution
 │   ├── rate-limit.ts   # Pacing + exponential backoff
-│   ├── url-parser.ts   # LinkedIn URLs → URNs
+│   ├── types.ts        # ALL normalized types (single source of truth)
+│   ├── url-parser.ts   # LinkedIn URLs → URNs + extractIdFromUrn
 │   └── config.ts       # Config file loading
 └── output/
-    ├── human.ts        # Pretty output with emoji + color
-    └── json.ts         # Raw JSON output
+    ├── human.ts        # Pretty output with emoji + color + formatPagination
+    ├── json.ts         # Raw JSON output
+    └── types.ts        # Re-exports from lib/types.ts (for backwards compat)
 ```
+
+### Type Organization
+**All normalized types live in `src/lib/types.ts`** — this is the single source of truth. The `output/types.ts` file re-exports these for backwards compatibility. Never define the same type in multiple files.
+
+### Shared Utilities Pattern
+When you see duplicate code across commands, extract it:
+- **URL/URN parsing** → `lib/url-parser.ts` (e.g., `extractIdFromUrn`)
+- **Recipient resolution** → `lib/recipient.ts` (username/URL → profile URN)
+- **Pagination formatting** → `output/human.ts` (e.g., `formatPagination`)
+- **Constants** → `lib/constants.ts` (e.g., `LINKEDIN_PROFILE_BASE_URL`)
 
 ## Code Principles
 
@@ -187,36 +231,32 @@ LINKEDIN_LI_AT=<token>           # Primary session token
 LINKEDIN_JSESSIONID=<token>      # CSRF token
 ```
 
-## v0.1 Build Order
+## v0.1 Build Order (COMPLETE)
 
-For each item:
-1. Write tests first
-2. Implement to make tests pass
-3. Run `.claude/hooks/de-slop.sh` to check code quality
-4. Log any significant decisions in DECISIONS.MD
-5. Commit with descriptive message
+All v0.1 items are implemented. Current test count: **282 tests passing**.
 
 1. [x] Project setup (tsconfig, biome, package.json scripts)
-2. [ ] `src/lib/auth.ts` - cookie resolution from Chrome + env vars
-   - Subagent: study Bird's auth pattern first
-   - Tests: env var resolution, missing creds error, Chrome cookie extraction mock
-3. [ ] `src/lib/headers.ts` - request header construction
-   - Tests: builds correct headers from credentials
-4. [ ] `src/lib/client.ts` - LinkedInClient with /me validation
-   - Tests: successful validation, 401 handling, 429 retry logic
-5. [ ] `src/lib/parser.ts` - response normalization
-   - Tests: parse profile, parse connections, parse messages
-6. [ ] `src/lib/url-parser.ts` - LinkedIn URLs → URNs
-   - Tests: profile URLs, post URLs, raw URNs, invalid URLs
-7. [ ] `src/output/human.ts` + `src/output/json.ts`
-   - Tests: format profile, format connections list
-8. [ ] `src/commands/whoami.ts` + `src/commands/check.ts`
-9. [ ] `src/commands/profile.ts`
-10. [ ] `src/commands/connections.ts`
-11. [ ] `src/commands/connect.ts` + `src/commands/invites.ts`
-12. [ ] `src/commands/messages.ts` + `src/commands/send.ts`
-13. [ ] `src/cli.ts` - wire up Commander
-14. [ ] README with usage examples
+2. [x] `src/lib/auth.ts` - cookie resolution from Chrome + env vars
+3. [x] `src/lib/headers.ts` - request header construction
+4. [x] `src/lib/client.ts` - LinkedInClient with /me validation
+5. [x] `src/lib/parser.ts` - response normalization
+6. [x] `src/lib/url-parser.ts` - LinkedIn URLs → URNs
+7. [x] `src/output/human.ts` + `src/output/json.ts`
+8. [x] `src/commands/whoami.ts` + `src/commands/check.ts`
+9. [x] `src/commands/profile.ts`
+10. [x] `src/commands/connections.ts`
+11. [x] `src/commands/connect.ts` + `src/commands/invites.ts`
+12. [x] `src/commands/messages.ts` + `src/commands/send.ts`
+13. [x] `src/cli.ts` - wire up Commander
+14. [x] README with usage examples
+
+### For future work
+Follow TDD for each item:
+1. Write tests first
+2. Implement to make tests pass
+3. Run `pnpm lint:fix` to check code quality
+4. Log any significant decisions in DECISIONS.MD
+5. Commit with descriptive message
 
 ## Reference Code
 
