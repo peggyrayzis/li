@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type LinkedInCredentials, resolveCredentials } from "../../src/lib/auth.js";
 
+vi.mock("@steipete/sweet-cookie", () => ({
+	getCookies: vi.fn(),
+}));
+
 describe("auth", () => {
 	const originalEnv = process.env;
 
@@ -171,6 +175,86 @@ describe("auth", () => {
 			expect(creds).toHaveProperty("cookieHeader");
 			expect(creds).toHaveProperty("csrfToken");
 			expect(creds).toHaveProperty("source");
+		});
+	});
+
+	describe("Chrome cookie extraction", () => {
+		it("resolves credentials from Chrome when cookieSource includes chrome", async () => {
+			const { getCookies } = await import("@steipete/sweet-cookie");
+			vi.mocked(getCookies).mockResolvedValue({
+				cookies: [
+					{ name: "li_at", value: "chrome-li-at-token" },
+					{ name: "JSESSIONID", value: "chrome-jsession-token" },
+				],
+				warnings: [],
+			});
+
+			const result = await resolveCredentials({
+				cookieSource: ["chrome"],
+			});
+
+			expect(result.credentials.liAt).toBe("chrome-li-at-token");
+			expect(result.credentials.jsessionId).toBe("chrome-jsession-token");
+			expect(result.credentials.source).toBe("chrome");
+		});
+
+		it("env vars take priority over Chrome cookies", async () => {
+			const { getCookies } = await import("@steipete/sweet-cookie");
+			vi.mocked(getCookies).mockResolvedValue({
+				cookies: [
+					{ name: "li_at", value: "chrome-li-at" },
+					{ name: "JSESSIONID", value: "chrome-jsession" },
+				],
+				warnings: [],
+			});
+
+			process.env.LINKEDIN_LI_AT = "env-li-at";
+			process.env.LINKEDIN_JSESSIONID = "env-jsession";
+
+			const result = await resolveCredentials({
+				cookieSource: ["chrome"],
+			});
+
+			expect(result.credentials.liAt).toBe("env-li-at");
+			expect(result.credentials.jsessionId).toBe("env-jsession");
+			expect(result.credentials.source).toBe("env");
+		});
+
+		it("handles missing Chrome cookies gracefully", async () => {
+			const { getCookies } = await import("@steipete/sweet-cookie");
+			vi.mocked(getCookies).mockResolvedValue({
+				cookies: [],
+				warnings: [],
+			});
+
+			await expect(
+				resolveCredentials({ cookieSource: ["chrome"] }),
+			).rejects.toThrow(/LinkedIn credentials not found/);
+		});
+
+		it("does not attempt Chrome extraction when cookieSource not specified", async () => {
+			const { getCookies } = await import("@steipete/sweet-cookie");
+			vi.mocked(getCookies).mockClear();
+
+			await expect(resolveCredentials({})).rejects.toThrow(/LinkedIn credentials not found/);
+			expect(getCookies).not.toHaveBeenCalled();
+		});
+
+		it("strips quotes from Chrome JSESSIONID", async () => {
+			const { getCookies } = await import("@steipete/sweet-cookie");
+			vi.mocked(getCookies).mockResolvedValue({
+				cookies: [
+					{ name: "li_at", value: "chrome-li-at" },
+					{ name: "JSESSIONID", value: '"quoted-jsession"' },
+				],
+				warnings: [],
+			});
+
+			const result = await resolveCredentials({
+				cookieSource: ["chrome"],
+			});
+
+			expect(result.credentials.jsessionId).toBe("quoted-jsession");
 		});
 	});
 });
