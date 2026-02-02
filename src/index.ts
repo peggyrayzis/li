@@ -17,6 +17,8 @@ export type { CredentialsOptions, CredentialsResult, LinkedInCredentials } from 
 export { resolveCredentials } from "./lib/auth.js";
 // Client
 export { LinkedInApiError, LinkedInClient } from "./lib/client.js";
+// Constants
+export { LINKEDIN_PROFILE_BASE_URL } from "./lib/constants.js";
 export type { NormalizedConversation, NormalizedMessage } from "./lib/parser.js";
 export {
 	extractLocalized,
@@ -26,9 +28,14 @@ export {
 	parseMessage,
 	parseProfile,
 } from "./lib/parser.js";
+// Recipient resolution
+export type { ResolvedRecipient } from "./lib/recipient.js";
+export { resolveRecipient } from "./lib/recipient.js";
 export type { ParsedLinkedInUrl } from "./lib/url-parser.js";
 // Parsing
-export { parseLinkedInUrl } from "./lib/url-parser.js";
+export { extractIdFromUrn, parseLinkedInUrl } from "./lib/url-parser.js";
+// Output formatting
+export { formatPagination } from "./output/human.js";
 // Output types
 export type {
 	NetworkInfo,
