@@ -1,0 +1,122 @@
+import { describe, expect, it } from "vitest";
+import type { LinkedInCredentials } from "../../src/lib/auth.js";
+import { buildHeaders } from "../../src/lib/headers.js";
+
+describe("headers", () => {
+	const mockCredentials: LinkedInCredentials = {
+		liAt: "AQE-test-li-at-token",
+		jsessionId: "ajax:1234567890123456789",
+		cookieHeader: 'li_at=AQE-test-li-at-token; JSESSIONID="ajax:1234567890123456789"',
+		csrfToken: "ajax:1234567890123456789",
+		source: "env",
+	};
+
+	describe("buildHeaders", () => {
+		it("returns correct Cookie header from credentials", () => {
+			const headers = buildHeaders(mockCredentials);
+
+			expect(headers.Cookie).toBe(mockCredentials.cookieHeader);
+		});
+
+		it("returns csrf-token from credentials csrfToken", () => {
+			const headers = buildHeaders(mockCredentials);
+
+			expect(headers["csrf-token"]).toBe(mockCredentials.csrfToken);
+		});
+
+		it("includes realistic User-Agent string", () => {
+			const headers = buildHeaders(mockCredentials);
+
+			expect(headers["User-Agent"]).toContain("Mozilla/5.0");
+			expect(headers["User-Agent"]).toContain("Chrome");
+			expect(headers["User-Agent"]).toContain("Safari");
+		});
+
+		it("includes X-Li-Lang header", () => {
+			const headers = buildHeaders(mockCredentials);
+
+			expect(headers["X-Li-Lang"]).toBe("en_US");
+		});
+
+		it("includes X-Li-Track header with required fields", () => {
+			const headers = buildHeaders(mockCredentials);
+
+			expect(headers["X-Li-Track"]).toBeDefined();
+			const track = JSON.parse(headers["X-Li-Track"]);
+			expect(track.clientVersion).toBeDefined();
+			expect(track.osName).toBe("web");
+			expect(track.deviceFormFactor).toBe("DESKTOP");
+			expect(track.mpName).toBe("voyager-web");
+		});
+
+		it("includes X-Restli-Protocol-Version header", () => {
+			const headers = buildHeaders(mockCredentials);
+
+			expect(headers["X-Restli-Protocol-Version"]).toBe("2.0.0");
+		});
+
+		it("includes Accept header for LinkedIn normalized JSON", () => {
+			const headers = buildHeaders(mockCredentials);
+
+			expect(headers.Accept).toBe("application/vnd.linkedin.normalized+json+2.1");
+		});
+
+		it("returns all required headers", () => {
+			const headers = buildHeaders(mockCredentials);
+
+			const requiredHeaders = [
+				"Cookie",
+				"csrf-token",
+				"User-Agent",
+				"X-Li-Lang",
+				"X-Li-Track",
+				"X-Restli-Protocol-Version",
+				"Accept",
+			];
+
+			for (const header of requiredHeaders) {
+				expect(headers).toHaveProperty(header);
+				expect(headers[header]).toBeTruthy();
+			}
+		});
+
+		it("handles different credential values correctly", () => {
+			const differentCreds: LinkedInCredentials = {
+				liAt: "different-li-at",
+				jsessionId: "different-jsession",
+				cookieHeader: 'li_at=different-li-at; JSESSIONID="different-jsession"',
+				csrfToken: "different-jsession",
+				source: "cli",
+			};
+
+			const headers = buildHeaders(differentCreds);
+
+			expect(headers.Cookie).toBe(differentCreds.cookieHeader);
+			expect(headers["csrf-token"]).toBe(differentCreds.csrfToken);
+		});
+	});
+
+	describe("header values", () => {
+		it("User-Agent matches modern Chrome on macOS", () => {
+			const headers = buildHeaders(mockCredentials);
+
+			expect(headers["User-Agent"]).toMatch(/Macintosh.*Intel Mac OS X/);
+			expect(headers["User-Agent"]).toMatch(/Chrome\/\d+/);
+		});
+
+		it("X-Li-Track timezone is a valid IANA timezone", () => {
+			const headers = buildHeaders(mockCredentials);
+			const track = JSON.parse(headers["X-Li-Track"]);
+
+			// Should be a valid IANA timezone string
+			expect(track.timezone).toMatch(/^[A-Za-z_]+\/[A-Za-z_]+$/);
+		});
+
+		it("X-Li-Track timezoneOffset is a number", () => {
+			const headers = buildHeaders(mockCredentials);
+			const track = JSON.parse(headers["X-Li-Track"]);
+
+			expect(typeof track.timezoneOffset).toBe("number");
+		});
+	});
+});
