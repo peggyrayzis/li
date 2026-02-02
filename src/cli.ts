@@ -150,6 +150,7 @@ program
 	.description("List your LinkedIn connections")
 	.option("--json", "Output as JSON")
 	.option("-n, --count <number>", "Number of connections to show", "20")
+	.option("--all", "Fetch all connections")
 	.option("--start <number>", "Start offset for pagination", "0")
 	.action(async (options) => {
 		try {
@@ -157,6 +158,7 @@ program
 			const credentials = await getCredentials(globalOpts);
 			const output = await connections(credentials, {
 				json: options.json,
+				all: options.all,
 				count: Number.parseInt(options.count, 10),
 				start: Number.parseInt(options.start, 10),
 			});

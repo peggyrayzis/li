@@ -2,10 +2,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { connections } from "../../../src/commands/connections.js";
 import type { LinkedInCredentials } from "../../../src/lib/auth.js";
 
-// Load fixture
-const rscPayload =
-	'{"url":"https://www.linkedin.com/in/janesmith/","children":["Jane Smith"],"children":["Engineering Lead at Acme"]}' +
-	'{"url":"https://www.linkedin.com/in/johndoe/","children":["John Doe"],"children":["CTO at StartupCo"]}';
+function buildRscPayload(startIndex: number, count: number): string {
+	const entries: string[] = [];
+	for (let index = 0; index < count; index += 1) {
+		const id = startIndex + index;
+		entries.push(
+			`{"url":"https://www.linkedin.com/in/user${id}/","children":["User ${id}"],"children":["Headline ${id}"]}`,
+		);
+	}
+	return entries.join("");
+}
 
 function mockFlagshipResponse(payload: string) {
 	const encoder = new TextEncoder();
@@ -40,7 +46,7 @@ describe("connections command", () => {
 	describe("successful fetch", () => {
 		it("fetches connections from the correct endpoint with default pagination", async () => {
 			mockFetch
-				.mockResolvedValueOnce(mockFlagshipResponse(rscPayload))
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 2)))
 				.mockResolvedValue(mockFlagshipResponse(""));
 
 			await connections(mockCredentials);
@@ -55,24 +61,24 @@ describe("connections command", () => {
 
 		it("returns human-readable output by default", async () => {
 			mockFetch
-				.mockResolvedValueOnce(mockFlagshipResponse(rscPayload))
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 2)))
 				.mockResolvedValue(mockFlagshipResponse(""));
 
 			const result = await connections(mockCredentials);
 
 			// Should contain formatted connection names
-			expect(result).toContain("Jane Smith");
-			expect(result).toContain("@janesmith");
-			expect(result).toContain("John Doe");
-			expect(result).toContain("@johndoe");
+			expect(result).toContain("User 0");
+			expect(result).toContain("@user0");
+			expect(result).toContain("User 1");
+			expect(result).toContain("@user1");
 			// Should contain headlines
-			expect(result).toContain("Engineering Lead at Acme");
-			expect(result).toContain("CTO at StartupCo");
+			expect(result).toContain("Headline 0");
+			expect(result).toContain("Headline 1");
 		});
 
 		it("returns JSON output when json option is true", async () => {
 			mockFetch
-				.mockResolvedValueOnce(mockFlagshipResponse(rscPayload))
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 2)))
 				.mockResolvedValue(mockFlagshipResponse(""));
 
 			const result = await connections(mockCredentials, { json: true });
@@ -83,23 +89,23 @@ describe("connections command", () => {
 			expect(parsed).toHaveProperty("paging");
 			expect(parsed.connections).toHaveLength(2);
 			expect(parsed.connections[0]).toMatchObject({
-				firstName: "Jane",
-				lastName: "Smith",
-				username: "janesmith",
-				headline: "Engineering Lead at Acme",
+				firstName: "User",
+				lastName: "0",
+				username: "user0",
+				headline: "Headline 0",
 			});
 		});
 
 		it("includes paging information in JSON output", async () => {
 			mockFetch
-				.mockResolvedValueOnce(mockFlagshipResponse(rscPayload))
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 2)))
 				.mockResolvedValue(mockFlagshipResponse(""));
 
 			const result = await connections(mockCredentials, { json: true });
 			const parsed = JSON.parse(result);
 
 			expect(parsed.paging).toEqual({
-				total: 2,
+				total: null,
 				count: 2,
 				start: 0,
 			});
@@ -109,7 +115,7 @@ describe("connections command", () => {
 	describe("pagination options", () => {
 		it("uses custom start value", async () => {
 			mockFetch
-				.mockResolvedValueOnce(mockFlagshipResponse(rscPayload))
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(100, 2)))
 				.mockResolvedValue(mockFlagshipResponse(""));
 
 			await connections(mockCredentials, { start: 100 });
@@ -124,7 +130,7 @@ describe("connections command", () => {
 
 		it("uses custom count value", async () => {
 			mockFetch
-				.mockResolvedValueOnce(mockFlagshipResponse(rscPayload))
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 2)))
 				.mockResolvedValue(mockFlagshipResponse(""));
 
 			await connections(mockCredentials, { count: 30 });
@@ -132,24 +138,50 @@ describe("connections command", () => {
 			expect(mockFetch).toHaveBeenCalled();
 		});
 
-		it("caps count at 50 (max allowed)", async () => {
+		it("paginates when count exceeds 50", async () => {
 			mockFetch
-				.mockResolvedValueOnce(mockFlagshipResponse(rscPayload))
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 50)))
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(50, 5)))
 				.mockResolvedValue(mockFlagshipResponse(""));
 
-			await connections(mockCredentials, { count: 100 });
+			await connections(mockCredentials, { count: 55 });
 
-			expect(mockFetch).toHaveBeenCalled();
+			expect(mockFetch).toHaveBeenCalledTimes(2);
+			expect(mockFetch).toHaveBeenNthCalledWith(
+				2,
+				expect.any(String),
+				expect.objectContaining({
+					body: expect.stringContaining('"startIndex":50'),
+				}),
+			);
 		});
 
 		it("allows count of 50", async () => {
 			mockFetch
-				.mockResolvedValueOnce(mockFlagshipResponse(rscPayload))
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 50)))
 				.mockResolvedValue(mockFlagshipResponse(""));
 
 			await connections(mockCredentials, { count: 50 });
 
 			expect(mockFetch).toHaveBeenCalled();
+		});
+
+		it("fetches all pages when all is true", async () => {
+			mockFetch
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 2)))
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(2, 2)))
+				.mockResolvedValueOnce(mockFlagshipResponse(""));
+
+			const result = await connections(mockCredentials, { json: true, all: true });
+			const parsed = JSON.parse(result);
+
+			expect(parsed.connections).toHaveLength(4);
+			expect(parsed.paging).toEqual({
+				total: null,
+				count: 4,
+				start: 0,
+			});
+			expect(mockFetch).toHaveBeenCalledTimes(3);
 		});
 	});
 
@@ -169,7 +201,7 @@ describe("connections command", () => {
 			const parsed = JSON.parse(result);
 
 			expect(parsed.connections).toEqual([]);
-			expect(parsed.paging.total).toBe(0);
+			expect(parsed.paging.total).toBeNull();
 		});
 	});
 

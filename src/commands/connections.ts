@@ -15,12 +15,13 @@ export interface ConnectionsOptions {
 	json?: boolean;
 	start?: number;
 	count?: number;
+	all?: boolean;
 }
 
 interface ConnectionsResult {
 	connections: NormalizedConnection[];
 	paging: {
-		total: number;
+		total: number | null;
 		count: number;
 		start: number;
 	};
@@ -48,7 +49,9 @@ export async function connections(
 ): Promise<string> {
 	const client = new LinkedInClient(credentials);
 	const start = options.start ?? 0;
-	const count = Math.min(options.count ?? 20, 50);
+	const requestedCount = options.count ?? 20;
+	const fetchAll = options.all ?? false;
+	const count = fetchAll ? null : Math.max(0, requestedCount);
 
 	const headers = {
 		...buildHeaders(credentials),
@@ -67,7 +70,7 @@ export async function connections(
 		paging: {
 			start,
 			count: normalizedConnections.length,
-			total: start + normalizedConnections.length,
+			total: null,
 		},
 	};
 
@@ -82,14 +85,16 @@ async function fetchConnectionsFromFlagship(
 	client: LinkedInClient,
 	headers: Record<string, string>,
 	start: number,
-	count: number,
+	count: number | null,
 ): Promise<NormalizedConnection[]> {
 	const connections: NormalizedConnection[] = [];
 	const seen = new Set<string>();
 	let currentStart = start;
 	let iterations = 0;
+	const targetCount = count ?? Number.POSITIVE_INFINITY;
+	const maxIterations = count === null ? 1000 : Math.max(20, Math.ceil(targetCount / 50) + 5);
 
-	while (connections.length < count && iterations < 20) {
+	while (connections.length < targetCount && iterations < maxIterations) {
 		const body = JSON.stringify(buildConnectionsPaginationBody(currentStart));
 		const response = await client.requestAbsolute(FLAGSHIP_CONNECTIONS_URL, {
 			method: "POST",
@@ -113,7 +118,7 @@ async function fetchConnectionsFromFlagship(
 			seen.add(connection.username);
 			connections.push(connection);
 			added += 1;
-			if (connections.length >= count) {
+			if (connections.length >= targetCount) {
 				break;
 			}
 		}
@@ -220,7 +225,7 @@ function formatHumanOutput(result: ConnectionsResult): string {
 
 	// Add paging info
 	const { start, count, total } = result.paging;
-	const end = Math.min(start + count, total);
+	const end = start + count;
 	lines.push(`${formatPagination(start, end, total)} connections`);
 
 	return lines.join("\n");

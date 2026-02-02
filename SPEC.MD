@@ -123,11 +123,11 @@ li query-ids --refresh --auto
 li query-ids --refresh --har ~/Downloads/www.linkedin.com.har
 
 Connections & Network ⭐ Priority
-All v0.1 connection commands use stable REST-li endpoints (no GraphQL, no queryId rotation).
-bash# Connection list (stable: /relationships/dash/connections)
+Connections list uses flagship RSC pagination (no GraphQL, no queryId rotation).
+bash# Connection list
 li connections [-n 20]                   # Your 1st-degree connections
-li connections --count                   # Connection count only
-li connections --all                     # Full list (paginated, warns if >500)
+li connections -n 150                    # Paginate to return more than 50
+li connections --all                     # Full list (paginated until exhausted)
 li connections --json                    # Connection data as JSON
 
 # Connection actions (stable: /growth/normInvitations)
@@ -141,14 +141,14 @@ li invites --accept-all                  # Accept all pending (with --confirm)
 li profile <username>                    # View profile (includes follower/connection count)
 li profile <username> --json             # Full profile JSON
 Connections pagination detail:
-The /relationships/dash/connections endpoint paginates at 40-50 per request using start and count query params. Response includes paging.total for progress tracking.
+Flagship RSC pagination returns up to 50 connections per request and does not expose a total. CLI reports paging.total as null.
 
 500 connections = ~10 requests
 30K connections (LinkedIn max) = ~600 requests
 --all warns before paginating if total > 500
 
 Network flags:
-FlagDescription-nNumber of results (default: 20)--countReturn only the count, not the list--allPaginate through all results (with safety warning)--notePersonalized note on connection request (max 300 chars)--confirmRequired for bulk operations like --accept-all
+FlagDescription-nNumber of results (default: 20)--allPaginate through all results (until exhausted)--notePersonalized note on connection request (max 300 chars)--confirmRequired for bulk operations like --accept-all
 What's NOT in v0.1 (deferred to v0.2):
 
 li post — posting (stable endpoint, deferred to cut scope)

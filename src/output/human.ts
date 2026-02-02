@@ -219,6 +219,9 @@ export function formatInvitation(invite: NormalizedInvitation): string {
  * @param total - Total number of items
  * @returns Formatted pagination string
  */
-export function formatPagination(start: number, end: number, total: number): string {
+export function formatPagination(start: number, end: number, total: number | null): string {
+	if (total === null) {
+		return `Showing ${start + 1}-${end}`;
+	}
 	return `Showing ${start + 1}-${end} of ${total.toLocaleString()}`;
 }
