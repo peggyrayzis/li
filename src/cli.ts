@@ -23,7 +23,8 @@ program
 	.description("LinkedIn CLI - Cookie auth, Voyager API, agent-friendly")
 	.version("0.1.0")
 	.option("--li-at <token>", "LinkedIn li_at cookie token")
-	.option("--jsessionid <token>", "LinkedIn JSESSIONID cookie token");
+	.option("--jsessionid <token>", "LinkedIn JSESSIONID cookie token")
+	.option("--cookie-source <source>", "Cookie source: chrome (explicit) or auto (default)", "auto");
 
 /**
  * Handle errors consistently across all commands.
@@ -38,11 +39,19 @@ function handleError(error: unknown): never {
  * Get credentials from CLI options, environment, or Chrome cookies.
  * Follows Bird's pattern: CLI args > env vars > browser cookies (auto-fallback).
  */
-async function getCredentials(options: { liAt?: string; jsessionid?: string }) {
+async function getCredentials(options: {
+	liAt?: string;
+	jsessionid?: string;
+	cookieSource?: string;
+}) {
+	// Determine cookie source: explicit chrome, or auto-fallback (default)
+	const cookieSource: "chrome"[] | undefined =
+		options.cookieSource === "chrome" || options.cookieSource === "auto" ? ["chrome"] : undefined;
+
 	const result = await resolveCredentials({
 		liAt: options.liAt,
 		jsessionId: options.jsessionid,
-		cookieSource: ["chrome"], // Auto-fallback to Chrome when env vars not set
+		cookieSource,
 	});
 
 	// Surface warnings to user (Bird pattern)

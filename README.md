@@ -110,6 +110,7 @@ All commands support:
 | `--json` | Output as JSON for piping to `jq` or agents |
 | `--li-at <token>` | Override li_at cookie |
 | `--jsessionid <token>` | Override JSESSIONID cookie |
+| `--cookie-source <src>` | Cookie source: `chrome` (explicit) or `auto` (default) |
 | `-h, --help` | Show help |
 | `-V, --version` | Show version |
 
