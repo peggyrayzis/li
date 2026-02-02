@@ -1,0 +1,46 @@
+{
+  "firstName": {
+    "localized": {
+      "en_US": "Peggy"
+    },
+    "preferredLocale": {
+      "country": "US",
+      "language": "en"
+    }
+  },
+  "lastName": {
+    "localized": {
+      "en_US": "Rayzis"
+    },
+    "preferredLocale": {
+      "country": "US",
+      "language": "en"
+    }
+  },
+  "headline": {
+    "localized": {
+      "en_US": "Developer marketing for devtools and AI founders"
+    },
+    "preferredLocale": {
+      "country": "US",
+      "language": "en"
+    }
+  },
+  "publicIdentifier": "peggyrayzis",
+  "entityUrn": "urn:li:fsd_profile:ABC123",
+  "industryName": {
+    "localized": {
+      "en_US": "Technology, Information and Internet"
+    }
+  },
+  "locationName": {
+    "localized": {
+      "en_US": "San Francisco Bay Area"
+    }
+  },
+  "summary": {
+    "localized": {
+      "en_US": "I help developer tools companies with positioning, messaging, and go-to-market strategy."
+    }
+  }
+}

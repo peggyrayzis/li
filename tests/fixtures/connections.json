@@ -1,0 +1,39 @@
+{
+  "elements": [
+    {
+      "to": "urn:li:fsd_profile:ABC123",
+      "to~": {
+        "firstName": {
+          "localized": { "en_US": "Jane" }
+        },
+        "lastName": {
+          "localized": { "en_US": "Smith" }
+        },
+        "publicIdentifier": "janesmith",
+        "headline": {
+          "localized": { "en_US": "Engineering Lead at Acme" }
+        }
+      }
+    },
+    {
+      "to": "urn:li:fsd_profile:DEF456",
+      "to~": {
+        "firstName": {
+          "localized": { "en_US": "John" }
+        },
+        "lastName": {
+          "localized": { "en_US": "Doe" }
+        },
+        "publicIdentifier": "johndoe",
+        "headline": {
+          "localized": { "en_US": "CTO at StartupCo" }
+        }
+      }
+    }
+  ],
+  "paging": {
+    "total": 1203,
+    "count": 50,
+    "start": 0
+  }
+}

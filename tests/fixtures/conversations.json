@@ -1,0 +1,79 @@
+{
+  "elements": [
+    {
+      "dashEntityUrn": "urn:li:fsd_conversation:2-ABC123",
+      "entityUrn": "urn:li:msg_conversation:ABC123",
+      "read": true,
+      "groupChat": false,
+      "totalEventCount": 15,
+      "unreadCount": 0,
+      "lastActivityAt": 1706745600000,
+      "participants": [
+        {
+          "miniProfile": {
+            "publicIdentifier": "janesmith",
+            "firstName": "Jane",
+            "lastName": "Smith",
+            "occupation": "Engineering Lead at Acme"
+          }
+        }
+      ],
+      "events": [
+        {
+          "createdAt": 1706745600000,
+          "eventContent": {
+            "messageEvent": {
+              "body": "Thanks for connecting! Would love to chat about devtools marketing.",
+              "attachments": []
+            }
+          },
+          "from": {
+            "miniProfile": {
+              "publicIdentifier": "janesmith"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "dashEntityUrn": "urn:li:fsd_conversation:2-DEF456",
+      "entityUrn": "urn:li:msg_conversation:DEF456",
+      "read": false,
+      "groupChat": false,
+      "totalEventCount": 3,
+      "unreadCount": 1,
+      "lastActivityAt": 1706659200000,
+      "participants": [
+        {
+          "miniProfile": {
+            "publicIdentifier": "johndoe",
+            "firstName": "John",
+            "lastName": "Doe",
+            "occupation": "CTO at StartupCo"
+          }
+        }
+      ],
+      "events": [
+        {
+          "createdAt": 1706659200000,
+          "eventContent": {
+            "messageEvent": {
+              "body": "Hey! Quick question about positioning for our dev tool launch.",
+              "attachments": []
+            }
+          },
+          "from": {
+            "miniProfile": {
+              "publicIdentifier": "johndoe"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "paging": {
+    "total": 156,
+    "count": 20,
+    "start": 0
+  }
+}

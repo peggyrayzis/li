@@ -1,0 +1,25 @@
+{
+  "miniProfile": {
+    "firstName": "Peggy",
+    "lastName": "Rayzis",
+    "occupation": "Developer marketing for devtools and AI founders",
+    "objectUrn": "urn:li:member:123456789",
+    "entityUrn": "urn:li:fs_miniProfile:ABC123",
+    "publicIdentifier": "peggyrayzis",
+    "picture": {
+      "com.linkedin.common.VectorImage": {
+        "rootUrl": "https://media.licdn.com/dms/image/v2/",
+        "artifacts": [
+          {
+            "width": 100,
+            "fileIdentifyingUrlPathSegment": "100_100/profile.jpg",
+            "height": 100
+          }
+        ]
+      }
+    },
+    "trackingId": "abc123tracking"
+  },
+  "plainId": 123456789,
+  "premiumSubscriber": false
+}

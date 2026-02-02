@@ -1,0 +1,45 @@
+{
+  "elements": [
+    {
+      "entityUrn": "urn:li:fsd_invitation:INV123",
+      "sharedSecret": "shared123",
+      "genericInviter": {
+        "miniProfile": {
+          "publicIdentifier": "newconnection",
+          "firstName": "Alex",
+          "lastName": "Johnson",
+          "occupation": "Product Manager at TechCorp"
+        }
+      },
+      "invitationType": "CONNECTION",
+      "message": "Hi Peggy, I loved your talk on developer marketing!",
+      "sentTime": 1706572800000,
+      "sharedConnections": {
+        "count": 5
+      }
+    },
+    {
+      "entityUrn": "urn:li:fsd_invitation:INV456",
+      "sharedSecret": "shared456",
+      "genericInviter": {
+        "miniProfile": {
+          "publicIdentifier": "anotherone",
+          "firstName": "Sam",
+          "lastName": "Wilson",
+          "occupation": "Developer Advocate"
+        }
+      },
+      "invitationType": "CONNECTION",
+      "message": null,
+      "sentTime": 1706486400000,
+      "sharedConnections": {
+        "count": 12
+      }
+    }
+  ],
+  "paging": {
+    "total": 8,
+    "count": 10,
+    "start": 0
+  }
+}

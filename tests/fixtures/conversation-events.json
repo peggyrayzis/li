@@ -1,0 +1,66 @@
+{
+  "elements": [
+    {
+      "entityUrn": "urn:li:fsd_message:msg001",
+      "createdAt": 1706745600000,
+      "eventContent": {
+        "messageEvent": {
+          "body": "Thanks for connecting! Would love to chat about devtools marketing.",
+          "attachments": []
+        }
+      },
+      "from": {
+        "miniProfile": {
+          "entityUrn": "urn:li:fsd_profile:abc123",
+          "publicIdentifier": "janesmith",
+          "firstName": "Jane",
+          "lastName": "Smith",
+          "occupation": "Engineering Lead at Acme"
+        }
+      }
+    },
+    {
+      "entityUrn": "urn:li:fsd_message:msg002",
+      "createdAt": 1706742000000,
+      "eventContent": {
+        "messageEvent": {
+          "body": "Hi Jane! Absolutely, happy to connect.",
+          "attachments": []
+        }
+      },
+      "from": {
+        "miniProfile": {
+          "entityUrn": "urn:li:fsd_profile:def456",
+          "publicIdentifier": "peggyrayzis",
+          "firstName": "Peggy",
+          "lastName": "Rayzis",
+          "occupation": "Developer marketing for devtools and AI founders"
+        }
+      }
+    },
+    {
+      "entityUrn": "urn:li:fsd_message:msg003",
+      "createdAt": 1706738400000,
+      "eventContent": {
+        "messageEvent": {
+          "body": "Hey! I saw your post about positioning dev tools. Really insightful!",
+          "attachments": []
+        }
+      },
+      "from": {
+        "miniProfile": {
+          "entityUrn": "urn:li:fsd_profile:abc123",
+          "publicIdentifier": "janesmith",
+          "firstName": "Jane",
+          "lastName": "Smith",
+          "occupation": "Engineering Lead at Acme"
+        }
+      }
+    }
+  ],
+  "paging": {
+    "total": 15,
+    "count": 20,
+    "start": 0
+  }
+}
