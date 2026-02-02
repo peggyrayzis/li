@@ -39,6 +39,8 @@ li whoami   # Shows your profile info
 
 ## Commands
 
+Note: v0.1 is read-only. Write commands (connect, send, invites accept) are disabled and will return an error. These are planned for v0.2.
+
 ### Identity
 
 ```bash
@@ -68,7 +70,7 @@ li connections --start 20       # Pagination offset
 li connections --json           # Output as JSON
 ```
 
-### Connection Requests
+### Connection Requests (v0.2)
 
 ```bash
 li connect peggyrayzis                              # Send connection request
@@ -82,7 +84,7 @@ li connect --json peggyrayzis
 li invites                      # List pending invitations
 li invites list                 # Same as above
 li invites list --json          # Output as JSON
-li invites accept INV123        # Accept an invitation by ID
+li invites accept INV123        # Accept an invitation by ID (v0.2)
 ```
 
 ### Messages
@@ -96,7 +98,7 @@ li messages read CONV123        # Read messages in a conversation
 li messages read CONV123 -n 50  # Show 50 messages
 ```
 
-### Send Messages
+### Send Messages (v0.2)
 
 ```bash
 li send peggyrayzis "Hey, quick question about your talk"
@@ -156,7 +158,7 @@ Structured JSON for agents and scripts:
 
 `li` is designed to be called by Claude, GPT, or any coding agent.
 
-### Filter connections and send personalized DMs
+### Filter connections and send personalized DMs (v0.2)
 
 ```bash
 li connections --all --json | \
@@ -172,7 +174,7 @@ li connections --all --json | \
 ```bash
 li invites --json | \
   jq -r '.invitations[] | select(.sharedConnections > 3) | .invitationId' | \
-  xargs -I{} li invites accept {}
+  xargs -I{} li invites accept {}   # v0.2
 ```
 
 ### Check for unread messages

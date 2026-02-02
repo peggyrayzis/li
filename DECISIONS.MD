@@ -146,4 +146,12 @@ This file tracks architectural and implementation decisions made during developm
 
 ---
 
+### 2026-02-02 Scope - Make v0.1 Read-only
+**Context**: Write commands (connect, send, invites accept) are untested and not yet validated in v0.1.
+**Decision**: Treat v0.1 as read-only. Write commands are deferred to v0.2 and blocked in the CLI.
+**Reason**: Keeps the MVP focused on safe, verified read flows while write operations are validated.
+**Consequences**: Users will see a clear error if they attempt write commands until v0.2 enables them.
+
+---
+
 <!-- Add new decisions above this line -->

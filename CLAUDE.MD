@@ -101,19 +101,18 @@ Format:
 
 ## v0.1 Scope (Current)
 
-Building the MVP with **stable REST-li endpoints only**. No GraphQL, no queryId rotation.
+Read-only MVP. Write commands are deferred to v0.2.
 
 ### v0.1 Commands
 - `whoami` - logged-in user info + network counts
 - `check` - validate session, show credential sources
 - `messages` - list conversations, read threads
-- `send` - DM a connection (new + existing threads)
 - `connections` - list connections (paginated)
-- `connect` - send connection request
-- `invites` - list/accept pending invitations
+- `invites` - list pending invitations
 - `profile` - view a profile
 
 ### NOT in v0.1 (don't build these)
+- `send`, `connect`, `invites --accept` (write commands)
 - `post`, `followers`, `following`, `follow`, `unfollow`, `disconnect`
 - GraphQL queryId infrastructure
 - Firefox/Safari cookie extraction (Chrome only for v0.1)

@@ -77,44 +77,18 @@ Fallback: degrade to count-only mode (counts come from stable /networkinfo)
 CLI Commands
 Naming Convention
 The binary is li. Commands follow the pattern li <verb> [args] [flags].
-v0.1 Commands — Mostly Stable Endpoints
+v0.1 Commands — Read-only
 
-Messaging (DMs) ⭐ Priority
+Note: v0.1 is read-only. Write commands (send, connect, invites accept) are deferred to v0.2.
+
+Messaging (read-only) ⭐ Priority
 bash# List conversations (first page only for now; may be incomplete)
 li messages [-n 10]                      # Recent conversations (most recent first)
-li messages --unread                     # Unread conversations only
 li messages --json                       # Full conversation metadata as JSON
 
 # Read a conversation
-li messages <username>                   # Messages with a specific person
-li messages <conversation-id>            # Read by conversation URN
-li messages <username> -n 50             # Last 50 messages in thread
-li messages <username> --all             # Full thread (paginated)
-
-# Send messages
-li send <username> "Hey, quick question" # DM a connection (new or existing thread)
-li send <username> --stdin               # Pipe message from stdin
-cat outreach.txt | li send <username> --stdin
-
-# Conversation management
-li messages <username> --seen            # Mark conversation as read
-Send behavior:
-
-If an existing conversation exists with <username>, the message is appended to it.
-If no conversation exists, a new one is created (connection required for standard accounts, InMail for premium — v0.5).
-<username> accepts a LinkedIn public identifier (peggyrayzis), a profile URL (https://www.linkedin.com/in/peggyrayzis), or a profile URN.
-
-Message flags:
-FlagDescription-nNumber of messages/conversations (default: 10)--unreadFilter to unread conversations only--seenMark conversation as read--stdinRead message body from stdin
-Agent workflow — outreach from CLI:
-bash# Agent reads a lead list, sends personalized DMs
-for user in $(cat leads.txt); do
-  li send "$user" "$(generate-message.sh $user)"
-  sleep 30  # respect rate limits
-done
-
-# Agent checks for replies
-li messages --unread --json | jq '.[] | {from: .participant, preview: .lastMessage}'
+li messages read <conversation-id>       # Read by conversation ID
+li messages read <conversation-id> -n 50 # Last 50 messages in thread
 
 Query IDs (messaging list)
 bash# Refresh/inspect messaging queryId cache
@@ -148,17 +122,20 @@ Flagship RSC pagination returns up to 50 connections per request and does not ex
 --all warns before paginating if total > 500
 
 Network flags:
-FlagDescription-nNumber of results (default: 20)--allPaginate through all results (until exhausted)--notePersonalized note on connection request (max 300 chars)--confirmRequired for bulk operations like --accept-all
+FlagDescription-nNumber of results (default: 20)--allPaginate through all results (until exhausted)--confirmRequired for bulk operations like --accept-all
 What's NOT in v0.1 (deferred to v0.2):
 
 li post — posting (stable endpoint, deferred to cut scope)
+li connect — send connection requests (write)
+li invites accept — accept pending invites (write)
+li send — send DMs (write)
+li messages --unread — filter to unread conversations only
+li messages --seen — mark conversation as read
+li send --stdin — pipe message body from stdin
 li followers — full follower list (GraphQL queryId required)
 li following — people you follow list (GraphQL queryId required)
 li follow <username> / li unfollow <username> — follow without connecting (GraphQL)
 li disconnect <username> — remove a connection
-li messages --unread — filter to unread conversations only
-li messages --seen — mark conversation as read
-li send --stdin — pipe message body from stdin
 
 Follower/connection counts are available in v0.1 via li whoami (uses stable /networkinfo endpoint). Only the lists for followers/following need GraphQL.
 Agent workflow — network management:

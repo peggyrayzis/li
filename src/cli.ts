@@ -41,6 +41,12 @@ function handleError(error: unknown): never {
 	process.exit(1);
 }
 
+function assertReadOnly(commandName: string): void {
+	throw new Error(
+		`"${commandName}" is a write command and is deferred to v0.2. v0.1 is read-only.`,
+	);
+}
+
 /**
  * Parse cookie source option into array of browser sources.
  */
@@ -178,6 +184,7 @@ program
 	.option("--note <message>", "Personalized note (max 300 chars)")
 	.action(async (identifier, options) => {
 		try {
+			assertReadOnly("connect");
 			const globalOpts = program.opts();
 			const credentials = await getCredentials(globalOpts);
 			const output = await connect(credentials, identifier, {
@@ -216,6 +223,7 @@ invitesCmd
 	.option("--json", "Output as JSON")
 	.action(async (id, options) => {
 		try {
+			assertReadOnly("invites accept");
 			const globalOpts = program.opts();
 			const credentials = await getCredentials(globalOpts);
 			const output = await acceptInvite(credentials, id, { json: options.json });
@@ -283,6 +291,7 @@ program
 	.option("--json", "Output as JSON")
 	.action(async (recipient, message, options) => {
 		try {
+			assertReadOnly("send");
 			const globalOpts = program.opts();
 			const credentials = await getCredentials(globalOpts);
 			const output = await send(credentials, recipient, message, { json: options.json });
