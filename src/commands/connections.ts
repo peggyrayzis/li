@@ -84,28 +84,46 @@ async function fetchConnectionsFromFlagship(
 	start: number,
 	count: number,
 ): Promise<NormalizedConnection[]> {
-	const body = JSON.stringify(buildConnectionsPaginationBody(start));
-	const response = await client.requestAbsolute(FLAGSHIP_CONNECTIONS_URL, {
-		method: "POST",
-		headers,
-		body,
-	});
-
-	const buffer = await response.arrayBuffer();
-	const payload = new TextDecoder("utf-8").decode(buffer);
-	const pageConnections = parseConnectionsFromFlagshipRsc(payload);
-
-	const seen = new Set<string>();
 	const connections: NormalizedConnection[] = [];
-	for (const connection of pageConnections) {
-		if (seen.has(connection.username)) {
-			continue;
-		}
-		seen.add(connection.username);
-		connections.push(connection);
-		if (connections.length >= count) {
+	const seen = new Set<string>();
+	let currentStart = start;
+	let iterations = 0;
+
+	while (connections.length < count && iterations < 20) {
+		const body = JSON.stringify(buildConnectionsPaginationBody(currentStart));
+		const response = await client.requestAbsolute(FLAGSHIP_CONNECTIONS_URL, {
+			method: "POST",
+			headers,
+			body,
+		});
+
+		const buffer = await response.arrayBuffer();
+		const payload = new TextDecoder("utf-8").decode(buffer);
+		const pageConnections = parseConnectionsFromFlagshipRsc(payload);
+
+		if (pageConnections.length === 0) {
 			break;
 		}
+
+		let added = 0;
+		for (const connection of pageConnections) {
+			if (seen.has(connection.username)) {
+				continue;
+			}
+			seen.add(connection.username);
+			connections.push(connection);
+			added += 1;
+			if (connections.length >= count) {
+				break;
+			}
+		}
+
+		if (added === 0) {
+			break;
+		}
+
+		currentStart += pageConnections.length;
+		iterations += 1;
 	}
 
 	return connections;

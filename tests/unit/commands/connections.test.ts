@@ -39,7 +39,9 @@ describe("connections command", () => {
 
 	describe("successful fetch", () => {
 		it("fetches connections from the correct endpoint with default pagination", async () => {
-			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(rscPayload));
+			mockFetch
+				.mockResolvedValueOnce(mockFlagshipResponse(rscPayload))
+				.mockResolvedValue(mockFlagshipResponse(""));
 
 			await connections(mockCredentials);
 
@@ -52,7 +54,9 @@ describe("connections command", () => {
 		});
 
 		it("returns human-readable output by default", async () => {
-			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(rscPayload));
+			mockFetch
+				.mockResolvedValueOnce(mockFlagshipResponse(rscPayload))
+				.mockResolvedValue(mockFlagshipResponse(""));
 
 			const result = await connections(mockCredentials);
 
@@ -67,7 +71,9 @@ describe("connections command", () => {
 		});
 
 		it("returns JSON output when json option is true", async () => {
-			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(rscPayload));
+			mockFetch
+				.mockResolvedValueOnce(mockFlagshipResponse(rscPayload))
+				.mockResolvedValue(mockFlagshipResponse(""));
 
 			const result = await connections(mockCredentials, { json: true });
 
@@ -85,7 +91,9 @@ describe("connections command", () => {
 		});
 
 		it("includes paging information in JSON output", async () => {
-			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(rscPayload));
+			mockFetch
+				.mockResolvedValueOnce(mockFlagshipResponse(rscPayload))
+				.mockResolvedValue(mockFlagshipResponse(""));
 
 			const result = await connections(mockCredentials, { json: true });
 			const parsed = JSON.parse(result);
@@ -100,7 +108,9 @@ describe("connections command", () => {
 
 	describe("pagination options", () => {
 		it("uses custom start value", async () => {
-			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(rscPayload));
+			mockFetch
+				.mockResolvedValueOnce(mockFlagshipResponse(rscPayload))
+				.mockResolvedValue(mockFlagshipResponse(""));
 
 			await connections(mockCredentials, { start: 100 });
 
@@ -113,7 +123,9 @@ describe("connections command", () => {
 		});
 
 		it("uses custom count value", async () => {
-			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(rscPayload));
+			mockFetch
+				.mockResolvedValueOnce(mockFlagshipResponse(rscPayload))
+				.mockResolvedValue(mockFlagshipResponse(""));
 
 			await connections(mockCredentials, { count: 30 });
 
@@ -121,7 +133,9 @@ describe("connections command", () => {
 		});
 
 		it("caps count at 50 (max allowed)", async () => {
-			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(rscPayload));
+			mockFetch
+				.mockResolvedValueOnce(mockFlagshipResponse(rscPayload))
+				.mockResolvedValue(mockFlagshipResponse(""));
 
 			await connections(mockCredentials, { count: 100 });
 
@@ -129,7 +143,9 @@ describe("connections command", () => {
 		});
 
 		it("allows count of 50", async () => {
-			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(rscPayload));
+			mockFetch
+				.mockResolvedValueOnce(mockFlagshipResponse(rscPayload))
+				.mockResolvedValue(mockFlagshipResponse(""));
 
 			await connections(mockCredentials, { count: 50 });
 
