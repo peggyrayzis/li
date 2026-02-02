@@ -536,11 +536,25 @@ async function fetchQueryIdsFromSettings(
 	operations: string[],
 ): Promise<Record<string, string>> {
 	try {
+		const credentials = client.getCredentials();
 		const response = await client.request(
 			`/graphql?includeWebMetadata=true&variables=()&queryId=${settingsQueryId}`,
-			{ method: "GET" },
+			{
+				method: "GET",
+				headers: {
+					Accept: "application/graphql",
+					"X-Li-Graphql-Token": credentials.csrfToken,
+				},
+			},
 		);
 		const text = await response.text();
+		if (DEBUG_QUERY_IDS_DUMP) {
+			try {
+				writeFileSync("/tmp/li-messaging-settings.json", text, "utf8");
+			} catch {
+				// Ignore dump failures.
+			}
+		}
 		const extracted = extractQueryIdFromText(text, operations);
 		if (extracted) {
 			return { [extracted.operation]: extracted.queryId };
