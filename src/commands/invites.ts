@@ -10,9 +10,9 @@ import type { LinkedInCredentials } from "../lib/auth.js";
 import { LinkedInClient } from "../lib/client.js";
 import endpoints from "../lib/endpoints.json" with { type: "json" };
 import { parseInvitation } from "../lib/parser.js";
+import type { NormalizedInvitation } from "../lib/types.js";
 import { formatInvitation } from "../output/human.js";
 import { formatJson } from "../output/json.js";
-import type { NormalizedInvitation } from "../output/types.js";
 
 export interface InvitesOptions {
 	json?: boolean;
@@ -50,28 +50,6 @@ function extractIdFromUrn(urn: string): string {
 }
 
 /**
- * Transform parser output to the format expected by human.ts formatInvitation.
- */
-function transformInvitation(raw: Record<string, unknown>): NormalizedInvitation {
-	const parsed = parseInvitation(raw);
-
-	return {
-		invitationId: extractIdFromUrn(parsed.urn),
-		inviter: {
-			urn: "",
-			username: parsed.inviter.username,
-			firstName: parsed.inviter.name.split(" ")[0] || "",
-			lastName: parsed.inviter.name.split(" ").slice(1).join(" ") || "",
-			headline: parsed.inviter.headline,
-			profileUrl: `https://www.linkedin.com/in/${parsed.inviter.username}`,
-		},
-		message: parsed.message || undefined,
-		sentAt: parsed.sentTime,
-		sharedConnections: parsed.sharedConnectionsCount,
-	};
-}
-
-/**
  * List pending connection invitations.
  *
  * @param credentials - LinkedIn session credentials
@@ -88,7 +66,7 @@ export async function listInvites(
 	const data = (await response.json()) as InvitationsResponse;
 
 	const elements = data.elements || [];
-	const invitations = elements.map((el) => transformInvitation(el));
+	const invitations = elements.map((el) => parseInvitation(el));
 	const total = data.paging?.total || invitations.length;
 
 	if (options.json) {

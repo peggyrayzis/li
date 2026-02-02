@@ -72,12 +72,7 @@ describe("parser", () => {
 			expect(result.username).toBe("peggyrayzis");
 			expect(result.urn).toBe("urn:li:fsd_profile:ABC123");
 			expect(result.location).toBe("San Francisco Bay Area");
-		});
-
-		it("constructs full name from first and last name", () => {
-			const result = parseProfile(profileFixture);
-
-			expect(result.name).toBe("Peggy Rayzis");
+			expect(result.profileUrl).toBe("https://www.linkedin.com/in/peggyrayzis");
 		});
 
 		it("extracts industry when present", () => {
@@ -108,8 +103,8 @@ describe("parser", () => {
 			expect(result.lastName).toBe("User");
 			expect(result.headline).toBe("");
 			expect(result.location).toBe("");
-			expect(result.industry).toBe("");
-			expect(result.summary).toBe("");
+			expect(result.industry).toBeUndefined();
+			expect(result.summary).toBeUndefined();
 		});
 
 		it("returns correct NormalizedProfile type", () => {
@@ -117,13 +112,11 @@ describe("parser", () => {
 
 			expect(result).toHaveProperty("firstName");
 			expect(result).toHaveProperty("lastName");
-			expect(result).toHaveProperty("name");
 			expect(result).toHaveProperty("headline");
 			expect(result).toHaveProperty("username");
 			expect(result).toHaveProperty("urn");
 			expect(result).toHaveProperty("location");
-			expect(result).toHaveProperty("industry");
-			expect(result).toHaveProperty("summary");
+			expect(result).toHaveProperty("profileUrl");
 		});
 	});
 
@@ -134,17 +127,18 @@ describe("parser", () => {
 
 			expect(result.firstName).toBe("Jane");
 			expect(result.lastName).toBe("Smith");
-			expect(result.name).toBe("Jane Smith");
 			expect(result.username).toBe("janesmith");
 			expect(result.headline).toBe("Engineering Lead at Acme");
 			expect(result.urn).toBe("urn:li:fsd_profile:ABC123");
+			expect(result.profileUrl).toBe("https://www.linkedin.com/in/janesmith");
 		});
 
 		it("parses second connection element correctly", () => {
 			const connectionElement = connectionsFixture.elements[1];
 			const result = parseConnection(connectionElement);
 
-			expect(result.name).toBe("John Doe");
+			expect(result.firstName).toBe("John");
+			expect(result.lastName).toBe("Doe");
 			expect(result.username).toBe("johndoe");
 			expect(result.headline).toBe("CTO at StartupCo");
 			expect(result.urn).toBe("urn:li:fsd_profile:DEF456");
@@ -171,10 +165,10 @@ describe("parser", () => {
 
 			expect(result).toHaveProperty("firstName");
 			expect(result).toHaveProperty("lastName");
-			expect(result).toHaveProperty("name");
 			expect(result).toHaveProperty("username");
 			expect(result).toHaveProperty("headline");
 			expect(result).toHaveProperty("urn");
+			expect(result).toHaveProperty("profileUrl");
 		});
 	});
 
@@ -183,7 +177,7 @@ describe("parser", () => {
 			const conversationElement = conversationsFixture.elements[0];
 			const result = parseConversation(conversationElement);
 
-			expect(result.urn).toBe("urn:li:fsd_conversation:2-ABC123");
+			expect(result.conversationId).toBe("urn:li:fsd_conversation:2-ABC123");
 			expect(result.read).toBe(true);
 			expect(result.unreadCount).toBe(0);
 			expect(result.totalEventCount).toBe(15);
@@ -196,19 +190,26 @@ describe("parser", () => {
 
 			expect(result.participants).toHaveLength(1);
 			expect(result.participants[0].username).toBe("janesmith");
-			expect(result.participants[0].name).toBe("Jane Smith");
+			expect(result.participants[0].firstName).toBe("Jane");
+			expect(result.participants[0].lastName).toBe("Smith");
 			expect(result.participants[0].headline).toBe("Engineering Lead at Acme");
 		});
 
-		it("extracts last message info", () => {
+		it("extracts primary participant", () => {
 			const conversationElement = conversationsFixture.elements[0];
 			const result = parseConversation(conversationElement);
 
-			expect(result.lastMessage).toBeDefined();
-			expect(result.lastMessage?.body).toBe(
+			expect(result.participant.username).toBe("janesmith");
+			expect(result.participant.firstName).toBe("Jane");
+		});
+
+		it("extracts last message body as string", () => {
+			const conversationElement = conversationsFixture.elements[0];
+			const result = parseConversation(conversationElement);
+
+			expect(result.lastMessage).toBe(
 				"Thanks for connecting! Would love to chat about devtools marketing.",
 			);
-			expect(result.lastMessage?.senderUsername).toBe("janesmith");
 		});
 
 		it("parses lastActivityAt as Date", () => {
@@ -225,19 +226,21 @@ describe("parser", () => {
 
 			expect(result.read).toBe(false);
 			expect(result.unreadCount).toBe(1);
-			expect(result.participants[0].name).toBe("John Doe");
+			expect(result.participants[0].firstName).toBe("John");
+			expect(result.participants[0].lastName).toBe("Doe");
 		});
 
 		it("returns correct NormalizedConversation type", () => {
 			const conversationElement = conversationsFixture.elements[0];
 			const result: NormalizedConversation = parseConversation(conversationElement);
 
-			expect(result).toHaveProperty("urn");
+			expect(result).toHaveProperty("conversationId");
 			expect(result).toHaveProperty("read");
 			expect(result).toHaveProperty("unreadCount");
 			expect(result).toHaveProperty("totalEventCount");
 			expect(result).toHaveProperty("groupChat");
 			expect(result).toHaveProperty("participants");
+			expect(result).toHaveProperty("participant");
 			expect(result).toHaveProperty("lastMessage");
 			expect(result).toHaveProperty("lastActivityAt");
 		});
@@ -251,15 +254,15 @@ describe("parser", () => {
 			expect(result.body).toBe(
 				"Thanks for connecting! Would love to chat about devtools marketing.",
 			);
-			expect(result.senderUsername).toBe("janesmith");
+			expect(result.sender.username).toBe("janesmith");
 		});
 
-		it("parses timestamp as Date", () => {
+		it("parses createdAt as Date", () => {
 			const messageEvent = conversationsFixture.elements[0].events[0];
 			const result = parseMessage(messageEvent);
 
-			expect(result.timestamp).toBeInstanceOf(Date);
-			expect(result.timestamp.getTime()).toBe(1706745600000);
+			expect(result.createdAt).toBeInstanceOf(Date);
+			expect(result.createdAt.getTime()).toBe(1706745600000);
 		});
 
 		it("extracts attachments array", () => {
@@ -274,7 +277,14 @@ describe("parser", () => {
 			const result = parseMessage(messageEvent);
 
 			expect(result.body).toBe("Hey! Quick question about positioning for our dev tool launch.");
-			expect(result.senderUsername).toBe("johndoe");
+			expect(result.sender.username).toBe("johndoe");
+		});
+
+		it("accepts optional conversationId parameter", () => {
+			const messageEvent = conversationsFixture.elements[0].events[0];
+			const result = parseMessage(messageEvent, "test-conversation-id");
+
+			expect(result.conversationId).toBe("test-conversation-id");
 		});
 
 		it("returns correct NormalizedMessage type", () => {
@@ -282,9 +292,11 @@ describe("parser", () => {
 			const result: NormalizedMessage = parseMessage(messageEvent);
 
 			expect(result).toHaveProperty("body");
-			expect(result).toHaveProperty("senderUsername");
-			expect(result).toHaveProperty("timestamp");
+			expect(result).toHaveProperty("sender");
+			expect(result).toHaveProperty("createdAt");
 			expect(result).toHaveProperty("attachments");
+			expect(result).toHaveProperty("messageId");
+			expect(result).toHaveProperty("conversationId");
 		});
 	});
 
@@ -294,6 +306,7 @@ describe("parser", () => {
 			const result = parseInvitation(invitationElement);
 
 			expect(result.urn).toBe("urn:li:fsd_invitation:INV123");
+			expect(result.invitationId).toBe("INV123");
 			expect(result.sharedSecret).toBe("shared123");
 			expect(result.type).toBe("CONNECTION");
 		});
@@ -303,7 +316,8 @@ describe("parser", () => {
 			const result = parseInvitation(invitationElement);
 
 			expect(result.inviter.username).toBe("newconnection");
-			expect(result.inviter.name).toBe("Alex Johnson");
+			expect(result.inviter.firstName).toBe("Alex");
+			expect(result.inviter.lastName).toBe("Johnson");
 			expect(result.inviter.headline).toBe("Product Manager at TechCorp");
 		});
 
@@ -314,35 +328,36 @@ describe("parser", () => {
 			expect(result.message).toBe("Hi Peggy, I loved your talk on developer marketing!");
 		});
 
-		it("handles null message", () => {
+		it("handles missing message", () => {
 			const invitationElement = invitationsFixture.elements[1];
 			const result = parseInvitation(invitationElement);
 
-			expect(result.message).toBeNull();
+			expect(result.message).toBeUndefined();
 		});
 
 		it("extracts shared connections count", () => {
 			const invitationElement = invitationsFixture.elements[0];
 			const result = parseInvitation(invitationElement);
 
-			expect(result.sharedConnectionsCount).toBe(5);
+			expect(result.sharedConnections).toBe(5);
 		});
 
-		it("parses sentTime as Date", () => {
+		it("parses sentAt as Date", () => {
 			const invitationElement = invitationsFixture.elements[0];
 			const result = parseInvitation(invitationElement);
 
-			expect(result.sentTime).toBeInstanceOf(Date);
-			expect(result.sentTime.getTime()).toBe(1706572800000);
+			expect(result.sentAt).toBeInstanceOf(Date);
+			expect(result.sentAt.getTime()).toBe(1706572800000);
 		});
 
 		it("parses second invitation correctly", () => {
 			const invitationElement = invitationsFixture.elements[1];
 			const result = parseInvitation(invitationElement);
 
-			expect(result.inviter.name).toBe("Sam Wilson");
-			expect(result.sharedConnectionsCount).toBe(12);
-			expect(result.message).toBeNull();
+			expect(result.inviter.firstName).toBe("Sam");
+			expect(result.inviter.lastName).toBe("Wilson");
+			expect(result.sharedConnections).toBe(12);
+			expect(result.message).toBeUndefined();
 		});
 
 		it("returns correct NormalizedInvitation type", () => {
@@ -350,12 +365,12 @@ describe("parser", () => {
 			const result: NormalizedInvitation = parseInvitation(invitationElement);
 
 			expect(result).toHaveProperty("urn");
+			expect(result).toHaveProperty("invitationId");
 			expect(result).toHaveProperty("sharedSecret");
 			expect(result).toHaveProperty("type");
 			expect(result).toHaveProperty("inviter");
-			expect(result).toHaveProperty("message");
-			expect(result).toHaveProperty("sharedConnectionsCount");
-			expect(result).toHaveProperty("sentTime");
+			expect(result).toHaveProperty("sharedConnections");
+			expect(result).toHaveProperty("sentAt");
 		});
 	});
 });

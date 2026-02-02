@@ -6,9 +6,9 @@
 import type { LinkedInCredentials } from "../lib/auth.js";
 import { LinkedInClient } from "../lib/client.js";
 import { parseConnection } from "../lib/parser.js";
+import type { NormalizedConnection } from "../lib/types.js";
 import { formatConnection } from "../output/human.js";
 import { formatJson } from "../output/json.js";
-import type { NormalizedConnection } from "../output/types.js";
 
 export interface ConnectionsOptions {
 	json?: boolean;
@@ -54,17 +54,8 @@ export async function connections(
 	);
 	const data = (await response.json()) as ConnectionsResponse;
 
-	const normalizedConnections: NormalizedConnection[] = data.elements.map((element) => {
-		const parsed = parseConnection(element);
-		return {
-			urn: parsed.urn,
-			username: parsed.username,
-			firstName: parsed.firstName,
-			lastName: parsed.lastName,
-			headline: parsed.headline,
-			profileUrl: `https://linkedin.com/in/${parsed.username}`,
-		};
-	});
+	// parseConnection now returns NormalizedConnection directly with profileUrl
+	const normalizedConnections = data.elements.map((element) => parseConnection(element));
 
 	const result: ConnectionsResult = {
 		connections: normalizedConnections,

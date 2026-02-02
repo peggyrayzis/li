@@ -8,11 +8,10 @@
 
 import type { LinkedInCredentials } from "../lib/auth.js";
 import { LinkedInClient } from "../lib/client.js";
-import type { NormalizedConversation, NormalizedMessage } from "../lib/parser.js";
 import { parseConversation, parseMessage } from "../lib/parser.js";
+import type { NormalizedConversation, NormalizedMessage } from "../lib/types.js";
 import { formatConversation, formatMessage } from "../output/human.js";
 import { formatJson } from "../output/json.js";
-import type { NormalizedConnection } from "../output/types.js";
 
 export interface MessagesOptions {
 	json?: boolean;
@@ -38,25 +37,8 @@ interface EventsApiResponse {
 	};
 }
 
-interface ConversationForOutput {
-	conversationId: string;
-	participant: NormalizedConnection;
-	lastMessage: string;
-	lastActivityAt: Date;
-	unreadCount: number;
-	totalEventCount: number;
-}
-
-interface MessageForOutput {
-	messageId: string;
-	conversationId: string;
-	sender: NormalizedConnection;
-	body: string;
-	createdAt: Date;
-}
-
 interface ListConversationsResult {
-	conversations: ConversationForOutput[];
+	conversations: NormalizedConversation[];
 	paging: {
 		total: number;
 		count: number;
@@ -65,60 +47,11 @@ interface ListConversationsResult {
 }
 
 interface ReadConversationResult {
-	messages: MessageForOutput[];
+	messages: NormalizedMessage[];
 	paging: {
 		total: number;
 		count: number;
 		start: number;
-	};
-}
-
-/**
- * Transform a NormalizedConversation from parser to the output format.
- */
-function toConversationForOutput(parsed: NormalizedConversation): ConversationForOutput {
-	const firstParticipant = parsed.participants[0] ?? {
-		username: "",
-		name: "",
-		headline: "",
-	};
-
-	const [firstName = "", lastName = ""] = firstParticipant.name.split(" ", 2);
-
-	return {
-		conversationId: parsed.urn,
-		participant: {
-			urn: "",
-			username: firstParticipant.username,
-			firstName,
-			lastName,
-			headline: firstParticipant.headline,
-			profileUrl: `https://linkedin.com/in/${firstParticipant.username}`,
-		},
-		lastMessage: parsed.lastMessage?.body ?? "",
-		lastActivityAt: parsed.lastActivityAt,
-		unreadCount: parsed.unreadCount,
-		totalEventCount: parsed.totalEventCount,
-	};
-}
-
-/**
- * Transform a NormalizedMessage from parser to the output format.
- */
-function toMessageForOutput(parsed: NormalizedMessage, conversationId: string): MessageForOutput {
-	return {
-		messageId: "",
-		conversationId,
-		sender: {
-			urn: "",
-			username: parsed.senderUsername,
-			firstName: "",
-			lastName: "",
-			headline: "",
-			profileUrl: `https://linkedin.com/in/${parsed.senderUsername}`,
-		},
-		body: parsed.body,
-		createdAt: parsed.timestamp,
 	};
 }
 
@@ -143,10 +76,7 @@ export async function listConversations(
 	);
 	const data = (await response.json()) as ConversationsApiResponse;
 
-	const conversations = data.elements.map((element) => {
-		const parsed = parseConversation(element);
-		return toConversationForOutput(parsed);
-	});
+	const conversations = data.elements.map((element) => parseConversation(element));
 
 	const result: ListConversationsResult = {
 		conversations,
@@ -183,10 +113,7 @@ export async function readConversation(
 	);
 	const data = (await response.json()) as EventsApiResponse;
 
-	const messages = data.elements.map((element) => {
-		const parsed = parseMessage(element);
-		return toMessageForOutput(parsed, conversationId);
-	});
+	const messages = data.elements.map((element) => parseMessage(element, conversationId));
 
 	const result: ReadConversationResult = {
 		messages,

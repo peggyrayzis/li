@@ -3,87 +3,23 @@
  * Normalizes raw API responses into clean, typed objects.
  */
 
-/**
- * Normalized profile data from Voyager API.
- */
-export interface NormalizedProfile {
-	firstName: string;
-	lastName: string;
-	name: string;
-	headline: string;
-	username: string;
-	urn: string;
-	location: string;
-	industry: string;
-	summary: string;
-}
+import {
+	LINKEDIN_PROFILE_BASE_URL,
+	type NormalizedConnection,
+	type NormalizedConversation,
+	type NormalizedInvitation,
+	type NormalizedMessage,
+	type NormalizedProfile,
+} from "./types.js";
 
-/**
- * Normalized connection data from /relationships/dash/connections endpoint.
- */
-export interface NormalizedConnection {
-	firstName: string;
-	lastName: string;
-	name: string;
-	username: string;
-	headline: string;
-	urn: string;
-}
-
-/**
- * Participant in a conversation.
- */
-export interface ConversationParticipant {
-	username: string;
-	name: string;
-	headline: string;
-}
-
-/**
- * Normalized conversation data from /messaging/conversations endpoint.
- */
-export interface NormalizedConversation {
-	urn: string;
-	read: boolean;
-	unreadCount: number;
-	totalEventCount: number;
-	groupChat: boolean;
-	participants: ConversationParticipant[];
-	lastMessage: NormalizedMessage | null;
-	lastActivityAt: Date;
-}
-
-/**
- * Normalized message data from conversation events.
- */
-export interface NormalizedMessage {
-	body: string;
-	senderUsername: string;
-	timestamp: Date;
-	attachments: unknown[];
-}
-
-/**
- * Inviter profile info in an invitation.
- */
-export interface InviterProfile {
-	username: string;
-	name: string;
-	headline: string;
-}
-
-/**
- * Normalized invitation data from /relationships/invitationViews endpoint.
- */
-export interface NormalizedInvitation {
-	urn: string;
-	sharedSecret: string;
-	type: string;
-	inviter: InviterProfile;
-	message: string | null;
-	sharedConnectionsCount: number;
-	sentTime: Date;
-}
+// Re-export types for backwards compatibility
+export type {
+	NormalizedConnection,
+	NormalizedConversation,
+	NormalizedInvitation,
+	NormalizedMessage,
+	NormalizedProfile,
+} from "./types.js";
 
 /**
  * Localized field structure used by LinkedIn.
@@ -133,6 +69,51 @@ export function extractLocalized(field: LocalizedField | string | null | undefin
 }
 
 /**
+ * Extract ID from a LinkedIn URN.
+ * @param urn - URN like "urn:li:fsd_invitation:INV123"
+ * @returns The ID portion, e.g., "INV123"
+ */
+function extractIdFromUrn(urn: string): string {
+	if (urn.startsWith("urn:li:")) {
+		const parts = urn.split(":");
+		return parts[parts.length - 1];
+	}
+	return urn;
+}
+
+/**
+ * Parse a mini profile (used in conversations and invitations) into NormalizedConnection.
+ */
+function parseMiniProfile(
+	miniProfile: Record<string, unknown> | undefined,
+	urn = "",
+): NormalizedConnection {
+	if (!miniProfile) {
+		return {
+			urn,
+			username: "",
+			firstName: "",
+			lastName: "",
+			headline: "",
+			profileUrl: LINKEDIN_PROFILE_BASE_URL,
+		};
+	}
+
+	const username = (miniProfile.publicIdentifier as string) || "";
+	const firstName = (miniProfile.firstName as string) || "";
+	const lastName = (miniProfile.lastName as string) || "";
+
+	return {
+		urn,
+		username,
+		firstName,
+		lastName,
+		headline: (miniProfile.occupation as string) || "",
+		profileUrl: `${LINKEDIN_PROFILE_BASE_URL}${username}`,
+	};
+}
+
+/**
  * Parses a raw profile response from Voyager API.
  * Works with both /identity/profiles/{slug}/profileView and /identity/dash/profiles responses.
  *
@@ -142,17 +123,20 @@ export function extractLocalized(field: LocalizedField | string | null | undefin
 export function parseProfile(raw: Record<string, unknown>): NormalizedProfile {
 	const firstName = extractLocalized(raw.firstName as LocalizedField);
 	const lastName = extractLocalized(raw.lastName as LocalizedField);
+	const username = (raw.publicIdentifier as string) || "";
+	const industry = extractLocalized(raw.industryName as LocalizedField);
+	const summary = extractLocalized(raw.summary as LocalizedField);
 
 	return {
+		urn: (raw.entityUrn as string) || "",
+		username,
 		firstName,
 		lastName,
-		name: `${firstName} ${lastName}`.trim(),
 		headline: extractLocalized(raw.headline as LocalizedField),
-		username: (raw.publicIdentifier as string) || "",
-		urn: (raw.entityUrn as string) || "",
 		location: extractLocalized(raw.locationName as LocalizedField),
-		industry: extractLocalized(raw.industryName as LocalizedField),
-		summary: extractLocalized(raw.summary as LocalizedField),
+		profileUrl: `${LINKEDIN_PROFILE_BASE_URL}${username}`,
+		...(industry && { industry }),
+		...(summary && { summary }),
 	};
 }
 
@@ -169,25 +153,26 @@ export function parseConnection(raw: Record<string, unknown>): NormalizedConnect
 
 	if (!profile) {
 		return {
+			urn,
+			username: "",
 			firstName: "",
 			lastName: "",
-			name: "",
-			username: "",
 			headline: "",
-			urn,
+			profileUrl: LINKEDIN_PROFILE_BASE_URL,
 		};
 	}
 
 	const firstName = extractLocalized(profile.firstName as LocalizedField);
 	const lastName = extractLocalized(profile.lastName as LocalizedField);
+	const username = (profile.publicIdentifier as string) || "";
 
 	return {
+		urn,
+		username,
 		firstName,
 		lastName,
-		name: `${firstName} ${lastName}`.trim(),
-		username: (profile.publicIdentifier as string) || "",
 		headline: extractLocalized(profile.headline as LocalizedField),
-		urn,
+		profileUrl: `${LINKEDIN_PROFILE_BASE_URL}${username}`,
 	};
 }
 
@@ -195,18 +180,21 @@ export function parseConnection(raw: Record<string, unknown>): NormalizedConnect
  * Parses a message event from conversation events array.
  *
  * @param raw - Raw message event from API
+ * @param conversationId - Optional conversation ID for the message
  * @returns Normalized message object
  */
-export function parseMessage(raw: Record<string, unknown>): NormalizedMessage {
+export function parseMessage(raw: Record<string, unknown>, conversationId = ""): NormalizedMessage {
 	const eventContent = raw.eventContent as Record<string, unknown> | undefined;
 	const messageEvent = eventContent?.messageEvent as Record<string, unknown> | undefined;
 	const from = raw.from as Record<string, unknown> | undefined;
 	const miniProfile = from?.miniProfile as Record<string, unknown> | undefined;
 
 	return {
+		messageId: (raw.dashEntityUrn as string) || "",
+		conversationId,
+		sender: parseMiniProfile(miniProfile),
 		body: (messageEvent?.body as string) || "",
-		senderUsername: (miniProfile?.publicIdentifier as string) || "",
-		timestamp: new Date((raw.createdAt as number) || 0),
+		createdAt: new Date((raw.createdAt as number) || 0),
 		attachments: (messageEvent?.attachments as unknown[]) || [],
 	};
 }
@@ -220,33 +208,40 @@ export function parseMessage(raw: Record<string, unknown>): NormalizedMessage {
 export function parseConversation(raw: Record<string, unknown>): NormalizedConversation {
 	const participantsRaw = raw.participants as Array<Record<string, unknown>> | undefined;
 	const eventsRaw = raw.events as Array<Record<string, unknown>> | undefined;
+	const conversationId = (raw.dashEntityUrn as string) || "";
 
-	const participants: ConversationParticipant[] = (participantsRaw || []).map((p) => {
+	const participants: NormalizedConnection[] = (participantsRaw || []).map((p) => {
 		const miniProfile = p.miniProfile as Record<string, unknown> | undefined;
-		const firstName = (miniProfile?.firstName as string) || "";
-		const lastName = (miniProfile?.lastName as string) || "";
-
-		return {
-			username: (miniProfile?.publicIdentifier as string) || "",
-			name: `${firstName} ${lastName}`.trim(),
-			headline: (miniProfile?.occupation as string) || "",
-		};
+		return parseMiniProfile(miniProfile);
 	});
 
-	let lastMessage: NormalizedMessage | null = null;
+	// Get the first participant or create an empty one
+	const participant: NormalizedConnection = participants[0] ?? {
+		urn: "",
+		username: "",
+		firstName: "",
+		lastName: "",
+		headline: "",
+		profileUrl: LINKEDIN_PROFILE_BASE_URL,
+	};
+
+	// Extract last message body
+	let lastMessage = "";
 	if (eventsRaw && eventsRaw.length > 0) {
-		lastMessage = parseMessage(eventsRaw[0]);
+		const parsed = parseMessage(eventsRaw[0], conversationId);
+		lastMessage = parsed.body;
 	}
 
 	return {
-		urn: (raw.dashEntityUrn as string) || "",
-		read: (raw.read as boolean) || false,
-		unreadCount: (raw.unreadCount as number) || 0,
-		totalEventCount: (raw.totalEventCount as number) || 0,
-		groupChat: (raw.groupChat as boolean) || false,
+		conversationId,
+		participant,
 		participants,
 		lastMessage,
 		lastActivityAt: new Date((raw.lastActivityAt as number) || 0),
+		unreadCount: (raw.unreadCount as number) || 0,
+		totalEventCount: (raw.totalEventCount as number) || 0,
+		read: (raw.read as boolean) || false,
+		groupChat: (raw.groupChat as boolean) || false,
 	};
 }
 
@@ -260,23 +255,17 @@ export function parseInvitation(raw: Record<string, unknown>): NormalizedInvitat
 	const genericInviter = raw.genericInviter as Record<string, unknown> | undefined;
 	const miniProfile = genericInviter?.miniProfile as Record<string, unknown> | undefined;
 	const sharedConnections = raw.sharedConnections as Record<string, unknown> | undefined;
-
-	const firstName = (miniProfile?.firstName as string) || "";
-	const lastName = (miniProfile?.lastName as string) || "";
-
-	const inviter: InviterProfile = {
-		username: (miniProfile?.publicIdentifier as string) || "",
-		name: `${firstName} ${lastName}`.trim(),
-		headline: (miniProfile?.occupation as string) || "",
-	};
+	const urn = (raw.entityUrn as string) || "";
+	const message = raw.message as string | undefined;
 
 	return {
-		urn: (raw.entityUrn as string) || "",
+		invitationId: extractIdFromUrn(urn),
+		urn,
 		sharedSecret: (raw.sharedSecret as string) || "",
 		type: (raw.invitationType as string) || "",
-		inviter,
-		message: (raw.message as string) ?? null,
-		sharedConnectionsCount: (sharedConnections?.count as number) || 0,
-		sentTime: new Date((raw.sentTime as number) || 0),
+		inviter: parseMiniProfile(miniProfile),
+		...(message !== undefined && message !== null && { message }),
+		sharedConnections: (sharedConnections?.count as number) || 0,
+		sentAt: new Date((raw.sentTime as number) || 0),
 	};
 }
