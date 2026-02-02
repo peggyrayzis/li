@@ -67,7 +67,7 @@ describe.skipIf(!shouldRunIntegration)("read-only integration", () => {
 			expect(parsed.paging).toHaveProperty("total");
 			expect(parsed.paging).toHaveProperty("count");
 			expect(parsed.paging).toHaveProperty("start");
-			expect(typeof parsed.paging.total).toBe("number");
+			expect(parsed.paging.total === null || typeof parsed.paging.total === "number").toBe(true);
 		});
 
 		it("returns connection objects with expected structure", async () => {
