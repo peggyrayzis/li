@@ -1,0 +1,50 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm *)",
+      "Bash(npx tsc*)",
+      "Bash(npx vitest*)",
+      "Bash(npx biome*)",
+      "Bash(node *)",
+      "Bash(git status*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git branch*)",
+      "Bash(git checkout*)",
+      "Bash(ls *)",
+      "Bash(mkdir *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(wc *)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:docs.github.com)",
+      "WebFetch(domain:npmjs.com)",
+      "WebFetch(domain:nodejs.org)",
+      "WebFetch(domain:typescriptlang.org)",
+      "WebFetch(domain:vitest.dev)",
+      "WebFetch(domain:biomejs.dev)",
+      "WebFetch(domain:claude.com)",
+      "WebFetch(domain:linkedin.com)"
+    ],
+    "deny": []
+  },
+  "sandbox": {
+    "enabled": true
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "^(Edit|Write)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/post-edit.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
