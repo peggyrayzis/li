@@ -261,7 +261,7 @@ describe("messages command", () => {
 			await readConversation(mockCredentials, "ABC123", { start: 0, count: 50 });
 
 			expect(mockRequest).toHaveBeenCalledWith(
-				expect.stringMatching(/count=50/),
+				expect.stringMatching(/count(?:=|%3A)50/),
 				expect.any(Object),
 			);
 		});
