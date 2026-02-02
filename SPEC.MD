@@ -163,7 +163,7 @@ li send --stdin — pipe message body from stdin
 Follower/connection counts are available in v0.1 via li whoami (uses stable /networkinfo endpoint). Only the lists for followers/following need GraphQL.
 Agent workflow — network management:
 bash# Agent checks current counts
-li whoami --json  # → {"name": "...", "followers": 4821, "connections": 1203}
+li whoami --json  # → {"name": "...", "followers": 4821, "connectionsDisplay": "500+"}
 
 # Agent processes pending invites
 li invites --json | jq '.[] | select(.sharedConnections > 3) | .id' | \
@@ -295,7 +295,7 @@ json{
   }]
 }
 Connection & Network Endpoints
-CommandMethodEndpointNotesconnectionsGET/relationships/dash/connections?start={n}&count={n}Paginated. Returns miniProfile per connection. paging.total for count.whoami (counts)GET/identity/profiles/{slug}/networkinfoReturns followersCount + connectionsCount. Fast, always stable.profileGET/identity/profiles/{slug}/profileViewFull profile including network stats.connectPOST/growth/normInvitationsBody: { "inviteeProfileUrn": "urn:li:fsd_profile:...", "message": "optional note" }invites (list)GET/relationships/invitationViewsPending received invitations.invites --acceptPOST/relationships/invitations/{inviteId}Accept with action=accept.
+CommandMethodEndpointNotesconnectionsGET/relationships/dash/connections?start={n}&count={n}Paginated. Returns miniProfile per connection. total count is not consistently exposed.whoami (counts)GET/identity/profiles/{slug}/networkinfoDeprecated/410; avoid. Use followerCount via GraphQL and display "500+" for connections until a stable total source is found.profileGET/identity/profiles/{slug}/profileViewFull profile including network stats.connectPOST/growth/normInvitationsBody: { "inviteeProfileUrn": "urn:li:fsd_profile:...", "message": "optional note" }invites (list)GET/relationships/invitationViewsPending received invitations.invites --acceptPOST/relationships/invitations/{inviteId}Accept with action=accept.
 Connections pagination response:
 json{
   "elements": [
@@ -465,7 +465,7 @@ li invites --json | jq -c '.[] | select(.sharedConnections > 2)' | while read in
 done
 
 # Agent checks network counts
-li whoami --json  # → {"name": "...", "followers": 4821, "connections": 1203}
+li whoami --json  # → {"name": "...", "followers": 4821, "connectionsDisplay": "500+"}
 MCP Server (future)
 A natural extension is wrapping li as an MCP server:
 json{

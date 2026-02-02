@@ -3,6 +3,15 @@ import type { LinkedInCredentials } from "../../../src/lib/auth.js";
 
 // Load fixtures
 import meFixture from "../../fixtures/me.json";
+import networkInfoFixture from "../../fixtures/networkinfo.json";
+
+const mockCredentials: LinkedInCredentials = {
+	liAt: "AQE-test-li-at-token",
+	jsessionId: "ajax:1234567890123456789",
+	cookieHeader: 'li_at=AQE-test-li-at-token; JSESSIONID="ajax:1234567890123456789"',
+	csrfToken: "ajax:1234567890123456789",
+	source: "env",
+};
 
 // Mock request function - hoisted for use in mock factory
 const mockRequest = vi.fn();
@@ -17,14 +26,6 @@ vi.mock("../../../src/lib/client.js", () => ({
 import { whoami } from "../../../src/commands/whoami.js";
 
 describe("whoami command", () => {
-	const mockCredentials: LinkedInCredentials = {
-		liAt: "AQE-test-li-at-token",
-		jsessionId: "ajax:1234567890123456789",
-		cookieHeader: 'li_at=AQE-test-li-at-token; JSESSIONID="ajax:1234567890123456789"',
-		csrfToken: "ajax:1234567890123456789",
-		source: "env",
-	};
-
 	afterEach(() => {
 		vi.clearAllMocks();
 	});
@@ -40,14 +41,37 @@ describe("whoami command", () => {
 						json: () => Promise.resolve(meFixture),
 					});
 				}
+				if (
+					path ===
+					"/graphql?includeWebMetadata=true&variables=(vanityName:peggyrayzis)&queryId=voyagerIdentityDashProfiles.a1a483e719b20537a256b6853cdca711"
+				) {
+					const payload = JSON.stringify({
+						included: [{ followerCount: networkInfoFixture.followersCount }],
+					});
+					return Promise.resolve({
+						ok: true,
+						status: 200,
+						json: () => Promise.resolve(JSON.parse(payload)),
+						text: () => Promise.resolve(payload),
+					});
+				}
 				return Promise.reject(new Error(`Unexpected path: ${path}`));
 			});
+
 		});
 
 		it("calls /me endpoint to get current user", async () => {
 			await whoami(mockCredentials);
 
 			expect(mockRequest).toHaveBeenCalledWith("/me");
+		});
+
+		it("uses GraphQL for follower counts", async () => {
+			await whoami(mockCredentials);
+
+			expect(mockRequest).toHaveBeenCalledWith(
+				"/graphql?includeWebMetadata=true&variables=(vanityName:peggyrayzis)&queryId=voyagerIdentityDashProfiles.a1a483e719b20537a256b6853cdca711",
+			);
 		});
 
 		it("returns human-readable output by default", async () => {
@@ -60,9 +84,9 @@ describe("whoami command", () => {
 			expect(result).toContain("@peggyrayzis");
 			// Should contain headline
 			expect(result).toContain("Developer marketing");
-			// Network info is currently skipped, so shows 0
-			expect(result).toContain("0 followers");
-			expect(result).toContain("0 connections");
+			// Network info from /networkinfo
+			expect(result).toContain("4,821 followers");
+			expect(result).toContain("500+ connections");
 		});
 
 		it("returns JSON output when --json flag is passed", async () => {
@@ -73,10 +97,10 @@ describe("whoami command", () => {
 			expect(parsed.profile.firstName).toBe("Peggy");
 			expect(parsed.profile.lastName).toBe("Rayzis");
 			expect(parsed.profile.username).toBe("peggyrayzis");
-			// Network info is currently skipped
+			// Network info from /networkinfo
 			expect(parsed.networkInfo).toBeDefined();
-			expect(parsed.networkInfo.followersCount).toBe(0);
-			expect(parsed.networkInfo.connectionsCount).toBe(0);
+			expect(parsed.networkInfo.followersCount).toBe(4821);
+			expect(parsed.networkInfo.connectionsDisplay).toBe("500+");
 		});
 	});
 
@@ -85,6 +109,38 @@ describe("whoami command", () => {
 			mockRequest.mockRejectedValueOnce(new Error("Session expired"));
 
 			await expect(whoami(mockCredentials)).rejects.toThrow("Session expired");
+		});
+	});
+
+	describe("network counts fallback", () => {
+		it("handles missing follower count but still returns connections", async () => {
+			mockRequest.mockImplementation((path: string) => {
+				if (path === "/me") {
+					return Promise.resolve({
+						ok: true,
+						status: 200,
+						json: () => Promise.resolve(meFixture),
+					});
+				}
+				if (
+					path ===
+					"/graphql?includeWebMetadata=true&variables=(vanityName:peggyrayzis)&queryId=voyagerIdentityDashProfiles.a1a483e719b20537a256b6853cdca711"
+				) {
+					const payload = JSON.stringify({ included: [] });
+					return Promise.resolve({
+						ok: true,
+						status: 200,
+						json: () => Promise.resolve(JSON.parse(payload)),
+						text: () => Promise.resolve(payload),
+					});
+				}
+				return Promise.reject(new Error(`Unexpected path: ${path}`));
+			});
+
+			const result = await whoami(mockCredentials);
+
+			expect(result).toContain("0 followers");
+			expect(result).toContain("500+ connections");
 		});
 	});
 });

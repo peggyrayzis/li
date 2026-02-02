@@ -5,7 +5,7 @@
 
 import type { LinkedInCredentials } from "../lib/auth.js";
 import { LinkedInClient } from "../lib/client.js";
-import { LINKEDIN_PROFILE_BASE_URL } from "../lib/constants.js";
+import { LINKEDIN_PROFILE_BASE_URL, LINKEDIN_WHOAMI_FOLLOWER_QUERY_ID } from "../lib/constants.js";
 import endpoints from "../lib/endpoints.json" with { type: "json" };
 import { formatWhoami } from "../output/human.js";
 import { formatJson } from "../output/json.js";
@@ -33,6 +33,10 @@ interface MeResponse {
 		"*miniProfile"?: string;
 	};
 	included?: MiniProfileIncluded[];
+}
+
+interface GraphQLResponse {
+	included?: Array<Record<string, unknown>>;
 }
 
 /**
@@ -85,8 +89,14 @@ export async function whoami(
 	const meData = (await meResponse.json()) as MeResponse;
 	const profile = parseMeResponse(meData);
 
-	// Skip network info for now - LinkedIn invalidates sessions very quickly
-	const networkInfo: NetworkInfo = { followersCount: 0, connectionsCount: 0 };
+	let networkInfo: NetworkInfo = { followersCount: 0, connectionsCount: 0 };
+
+	const followerCount = await fetchFollowerCount(client, profile.username);
+	networkInfo = {
+		followersCount: followerCount ?? 0,
+		connectionsCount: 0,
+		connectionsDisplay: "500+",
+	};
 
 	// Return JSON or human-readable output
 	if (options.json) {
@@ -98,3 +108,33 @@ export async function whoami(
 
 	return formatWhoami(profile, networkInfo);
 }
+
+async function fetchFollowerCount(
+	client: LinkedInClient,
+	username: string,
+): Promise<number | null> {
+	try {
+		const queryPath = `/graphql?includeWebMetadata=true&variables=(vanityName:${encodeURIComponent(
+			username,
+		)})&queryId=${LINKEDIN_WHOAMI_FOLLOWER_QUERY_ID}`;
+		const response = await client.request(queryPath);
+		const data = (await response.json()) as GraphQLResponse;
+		const included = Array.isArray(data.included) ? data.included : [];
+
+		for (const item of included) {
+			if (!item || typeof item !== "object") {
+				continue;
+			}
+			const followerCount = (item as { followerCount?: unknown }).followerCount;
+			if (typeof followerCount === "number") {
+				return followerCount;
+			}
+		}
+
+		return null;
+	} catch {
+		return null;
+	}
+}
+
+// Connections count is not reliably exposed in API responses; use a display fallback.

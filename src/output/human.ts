@@ -167,7 +167,9 @@ export function formatWhoami(me: NormalizedProfile, networkInfo: NetworkInfo): s
 
 	// Network stats
 	const followers = formatNumber(networkInfo.followersCount);
-	const connections = formatNumber(networkInfo.connectionsCount);
+	const connections =
+		networkInfo.connectionsDisplay ??
+		(formatNumber(networkInfo.connectionsCount) as string);
 	lines.push(`   ${pc.green(followers)} followers \u{00B7} ${pc.blue(connections)} connections`);
 
 	// Profile URL

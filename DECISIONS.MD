@@ -98,6 +98,22 @@ This file tracks architectural and implementation decisions made during developm
 
 ---
 
+### 2026-02-02 Whoami - Replace /networkinfo with GraphQL + Connections Count
+**Context**: `/identity/profiles/{username}/networkinfo` returns 410 and appears to invalidate sessions, while the profile page now fetches follower counts via GraphQL.
+**Decision**: Use `voyagerIdentityDashProfiles` GraphQL to fetch followerCount and `/relationships/dash/connections?start=0&count=1` for connections count.
+**Reason**: Avoids the deprecated networkinfo endpoint and uses active web-client traffic to keep counts accurate without triggering session resets.
+**Consequences**: Whoami now depends on a GraphQL queryId that may rotate and requires an extra request for connections count.
+
+---
+
+### 2026-02-02 Whoami - Use "500+" Connections Display
+**Context**: Connections total is no longer exposed in stable API responses, and HTML scraping is brittle and causes page flicker.
+**Decision**: Display "500+" for connections in `whoami` until a stable, non‑HTML source is found.
+**Reason**: Matches the LinkedIn profile UI and avoids fragile scraping.
+**Consequences**: Exact connection counts are not available in `whoami` for now.
+
+---
+
 ### 2026-02-02 Messages - Auto-discover Query IDs from LinkedIn Bundles
 **Context**: `messengerConversations` query IDs rotate frequently and manual HAR refresh is not acceptable for users.
 **Decision**: Add runtime query ID discovery that fetches the LinkedIn messaging page with session cookies, extracts bundle URLs, scans bundles for query IDs, and caches the results locally with an auto-refresh retry on 400 responses.

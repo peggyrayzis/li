@@ -36,10 +36,27 @@ export class LinkedInApiError extends Error {
  */
 /**
  * Minimum delay between API requests in milliseconds.
- * Using random delays (2-5 seconds) like open-linkedin-api to evade detection.
+ * Defaults to a short randomized delay (500-1200ms) and supports env overrides.
  */
+function parseDelayEnv(value: string | undefined): number | null {
+	if (!value) {
+		return null;
+	}
+	const parsed = Number(value);
+	if (!Number.isFinite(parsed) || parsed < 0) {
+		return null;
+	}
+	return parsed;
+}
+
 function getRequestDelay(): number {
-	return Math.floor(Math.random() * 3000) + 2000; // 2000-5000ms
+	const minEnv = parseDelayEnv(process.env.LI_REQUEST_DELAY_MIN_MS);
+	const maxEnv = parseDelayEnv(process.env.LI_REQUEST_DELAY_MAX_MS);
+	const min = minEnv ?? 500;
+	const max = maxEnv ?? 1200;
+	const safeMax = max >= min ? max : min;
+	const range = safeMax - min;
+	return min + Math.floor(Math.random() * (range + 1));
 }
 
 /**

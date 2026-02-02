@@ -86,4 +86,5 @@ export interface NormalizedInvitation {
 export interface NetworkInfo {
 	followersCount: number;
 	connectionsCount: number;
+	connectionsDisplay?: string;
 }
