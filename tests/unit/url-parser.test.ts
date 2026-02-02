@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-	type ParsedLinkedInUrl,
 	extractIdFromUrn,
+	type ParsedLinkedInUrl,
 	parseLinkedInUrl,
 } from "../../src/lib/url-parser.js";
 
