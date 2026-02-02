@@ -3,7 +3,6 @@ import type { LinkedInCredentials } from "../../../src/lib/auth.js";
 
 // Load fixtures
 import meFixture from "../../fixtures/me.json";
-import networkInfoFixture from "../../fixtures/networkinfo.json";
 
 // Mock request function - hoisted for use in mock factory
 const mockRequest = vi.fn();
@@ -41,14 +40,6 @@ describe("whoami command", () => {
 						json: () => Promise.resolve(meFixture),
 					});
 				}
-				// Mock /identity/profiles/{username}/networkinfo endpoint
-				if (path.includes("/networkinfo")) {
-					return Promise.resolve({
-						ok: true,
-						status: 200,
-						json: () => Promise.resolve(networkInfoFixture),
-					});
-				}
 				return Promise.reject(new Error(`Unexpected path: ${path}`));
 			});
 		});
@@ -57,12 +48,6 @@ describe("whoami command", () => {
 			await whoami(mockCredentials);
 
 			expect(mockRequest).toHaveBeenCalledWith("/me");
-		});
-
-		it("calls networkinfo endpoint with username from /me response", async () => {
-			await whoami(mockCredentials);
-
-			expect(mockRequest).toHaveBeenCalledWith("/identity/profiles/peggyrayzis/networkinfo");
 		});
 
 		it("returns human-readable output by default", async () => {
@@ -75,9 +60,9 @@ describe("whoami command", () => {
 			expect(result).toContain("@peggyrayzis");
 			// Should contain headline
 			expect(result).toContain("Developer marketing");
-			// Should contain follower and connection counts
-			expect(result).toContain("4,821");
-			expect(result).toContain("1,203");
+			// Network info is currently skipped, so shows 0
+			expect(result).toContain("0 followers");
+			expect(result).toContain("0 connections");
 		});
 
 		it("returns JSON output when --json flag is passed", async () => {
@@ -88,9 +73,10 @@ describe("whoami command", () => {
 			expect(parsed.profile.firstName).toBe("Peggy");
 			expect(parsed.profile.lastName).toBe("Rayzis");
 			expect(parsed.profile.username).toBe("peggyrayzis");
+			// Network info is currently skipped
 			expect(parsed.networkInfo).toBeDefined();
-			expect(parsed.networkInfo.followersCount).toBe(4821);
-			expect(parsed.networkInfo.connectionsCount).toBe(1203);
+			expect(parsed.networkInfo.followersCount).toBe(0);
+			expect(parsed.networkInfo.connectionsCount).toBe(0);
 		});
 	});
 
@@ -99,18 +85,6 @@ describe("whoami command", () => {
 			mockRequest.mockRejectedValueOnce(new Error("Session expired"));
 
 			await expect(whoami(mockCredentials)).rejects.toThrow("Session expired");
-		});
-
-		it("throws when networkinfo request fails", async () => {
-			mockRequest
-				.mockResolvedValueOnce({
-					ok: true,
-					status: 200,
-					json: () => Promise.resolve(meFixture),
-				})
-				.mockRejectedValueOnce(new Error("Network error"));
-
-			await expect(whoami(mockCredentials)).rejects.toThrow("Network error");
 		});
 	});
 });

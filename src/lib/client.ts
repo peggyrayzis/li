@@ -25,7 +25,13 @@ export class LinkedInApiError extends Error {
  * Minimum delay between API requests in milliseconds.
  * LinkedIn is aggressive about bot detection.
  */
-const MIN_REQUEST_DELAY_MS = 500;
+/**
+ * Minimum delay between API requests in milliseconds.
+ * Using random delays (2-5 seconds) like open-linkedin-api to evade detection.
+ */
+function getRequestDelay(): number {
+	return Math.floor(Math.random() * 3000) + 2000; // 2000-5000ms
+}
 
 /**
  * Initial backoff delay for 429 responses.
@@ -84,11 +90,14 @@ export interface RequestOptions {
 export class LinkedInClient {
 	private readonly credentials: LinkedInCredentials;
 	private readonly baseUrl: string;
+	private readonly headers: Record<string, string>;
 	private lastRequestTime = 0;
 
 	constructor(credentials: LinkedInCredentials) {
 		this.credentials = credentials;
 		this.baseUrl = endpoints.baseUrl;
+		// Build headers once per client instance to keep page instance consistent
+		this.headers = buildHeaders(this.credentials);
 	}
 
 	/**
@@ -98,12 +107,11 @@ export class LinkedInClient {
 	 */
 	async validateSession(): Promise<boolean> {
 		const url = `${this.baseUrl}${endpoints.endpoints.me}`;
-		const headers = buildHeaders(this.credentials);
 
 		try {
 			const response = await this.fetchWithRateLimit(url, {
 				method: "GET",
-				headers,
+				headers: this.headers,
 			});
 
 			return response.ok;
@@ -122,12 +130,11 @@ export class LinkedInClient {
 	 */
 	async request(path: string, options: RequestOptions = {}): Promise<Response> {
 		const url = `${this.baseUrl}${path}`;
-		const baseHeaders = buildHeaders(this.credentials);
 
 		const fetchOptions: RequestInit = {
 			method: options.method ?? "GET",
 			headers: {
-				...baseHeaders,
+				...this.headers,
 				...options.headers,
 			},
 			body: options.body,
@@ -138,22 +145,39 @@ export class LinkedInClient {
 
 	/**
 	 * Enforces rate limiting and makes the request.
+	 * Uses manual redirect handling to detect session invalidation.
 	 */
 	private async fetchWithRateLimit(url: string, options: RequestInit): Promise<Response> {
-		const now = Date.now();
-		const timeSinceLastRequest = now - this.lastRequestTime;
-
-		if (timeSinceLastRequest < MIN_REQUEST_DELAY_MS) {
-			const delayNeeded = MIN_REQUEST_DELAY_MS - timeSinceLastRequest;
-			await sleep(delayNeeded);
+		// Always add random delay before requests (2-5 seconds) to evade detection
+		// This mimics human browsing behavior
+		if (this.lastRequestTime > 0) {
+			await sleep(getRequestDelay());
 		}
 
 		try {
-			const response = await fetch(url, options);
+			// Use manual redirect to detect session invalidation
+			const response = await fetch(url, { ...options, redirect: "manual" });
 			this.lastRequestTime = Date.now();
+
+			// Detect LinkedIn session invalidation (302 to same URL with delete cookie)
+			if (response.status === 302) {
+				const location = response.headers.get("location");
+				const setCookie = response.headers.get("set-cookie") || "";
+
+				if (setCookie.includes("li_at=delete") || location === url) {
+					throw new LinkedInApiError(
+						401,
+						"Session expired or invalidated by LinkedIn. Please log in again and update your credentials.",
+					);
+				}
+			}
+
 			return response;
 		} catch (error) {
 			this.lastRequestTime = Date.now();
+			if (error instanceof LinkedInApiError) {
+				throw error;
+			}
 			throw new LinkedInApiError(
 				0,
 				`Network error: ${error instanceof Error ? error.message : "Unknown error"}`,

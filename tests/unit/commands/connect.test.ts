@@ -55,10 +55,8 @@ describe("connect command", () => {
 
 			const resultPromise = connect(mockCredentials, "johndoe");
 
-			// Advance timers to allow rate-limited requests
-			await vi.advanceTimersByTimeAsync(0);
-			await vi.advanceTimersByTimeAsync(500);
-			await vi.advanceTimersByTimeAsync(500);
+			// Advance timers to allow rate-limited requests (2-5 second random delays)
+			await vi.advanceTimersByTimeAsync(6000);
 
 			const result = await resultPromise;
 
@@ -105,7 +103,7 @@ describe("connect command", () => {
 			};
 
 			const resultPromise = connect(mockCredentials, "johndoe", options);
-			await vi.advanceTimersByTimeAsync(1000);
+			await vi.advanceTimersByTimeAsync(6000);
 			await resultPromise;
 
 			// Check the POST body includes the message
@@ -139,7 +137,7 @@ describe("connect command", () => {
 			});
 
 			const resultPromise = connect(mockCredentials, "https://www.linkedin.com/in/janedoe");
-			await vi.advanceTimersByTimeAsync(1000);
+			await vi.advanceTimersByTimeAsync(6000);
 			await resultPromise;
 
 			// Should resolve the username from URL
@@ -171,7 +169,7 @@ describe("connect command", () => {
 			});
 
 			const resultPromise = connect(mockCredentials, "urn:li:fsd_profile:ACoAABCD1234");
-			await vi.advanceTimersByTimeAsync(1000);
+			await vi.advanceTimersByTimeAsync(6000);
 			const result = await resultPromise;
 
 			// Should call twice: profile lookup + connection request
@@ -213,7 +211,7 @@ describe("connect command", () => {
 			});
 
 			const resultPromise = connect(mockCredentials, "johndoe", { json: true });
-			await vi.advanceTimersByTimeAsync(1000);
+			await vi.advanceTimersByTimeAsync(6000);
 			const result = await resultPromise;
 
 			// Should be valid JSON
@@ -261,7 +259,7 @@ describe("connect command", () => {
 			const resultPromise = connect(mockCredentials, "johndoe").catch((e) => {
 				error = e;
 			});
-			await vi.advanceTimersByTimeAsync(1000);
+			await vi.advanceTimersByTimeAsync(6000);
 			await resultPromise;
 
 			expect(error).toBeDefined();

@@ -130,7 +130,7 @@ describe("CLI", () => {
 			}
 
 			expect(mockResolveCredentials).toHaveBeenCalledWith(
-				expect.objectContaining({ cookieSource: ["chrome"] }),
+				expect.objectContaining({ cookieSource: ["chrome", "safari"] }),
 			);
 		});
 	});

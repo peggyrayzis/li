@@ -38,40 +38,30 @@ describe("headers", () => {
 			expect(headers["X-Li-Lang"]).toBe("en_US");
 		});
 
-		it("includes X-Li-Track header with required fields", () => {
-			const headers = buildHeaders(mockCredentials);
-
-			expect(headers["X-Li-Track"]).toBeDefined();
-			const track = JSON.parse(headers["X-Li-Track"]);
-			expect(track.clientVersion).toBeDefined();
-			expect(track.osName).toBe("web");
-			expect(track.deviceFormFactor).toBe("DESKTOP");
-			expect(track.mpName).toBe("voyager-web");
-		});
-
 		it("includes X-Restli-Protocol-Version header", () => {
 			const headers = buildHeaders(mockCredentials);
 
 			expect(headers["X-Restli-Protocol-Version"]).toBe("2.0.0");
 		});
 
-		it("includes Accept header for LinkedIn normalized JSON", () => {
+		it("includes Accept-Language header", () => {
 			const headers = buildHeaders(mockCredentials);
 
-			expect(headers.Accept).toBe("application/vnd.linkedin.normalized+json+2.1");
+			expect(headers["Accept-Language"]).toBeDefined();
+			expect(headers["Accept-Language"]).toContain("en");
 		});
 
 		it("returns all required headers", () => {
 			const headers = buildHeaders(mockCredentials);
 
+			// Minimal headers for LinkedIn API - over-specifying can trigger detection
 			const requiredHeaders = [
 				"Cookie",
 				"csrf-token",
 				"User-Agent",
+				"Accept-Language",
 				"X-Li-Lang",
-				"X-Li-Track",
 				"X-Restli-Protocol-Version",
-				"Accept",
 			];
 
 			for (const header of requiredHeaders) {
@@ -102,21 +92,6 @@ describe("headers", () => {
 
 			expect(headers["User-Agent"]).toMatch(/Macintosh.*Intel Mac OS X/);
 			expect(headers["User-Agent"]).toMatch(/Chrome\/\d+/);
-		});
-
-		it("X-Li-Track timezone is a valid IANA timezone", () => {
-			const headers = buildHeaders(mockCredentials);
-			const track = JSON.parse(headers["X-Li-Track"]);
-
-			// Should be a valid IANA timezone string
-			expect(track.timezone).toMatch(/^[A-Za-z_]+\/[A-Za-z_]+$/);
-		});
-
-		it("X-Li-Track timezoneOffset is a number", () => {
-			const headers = buildHeaders(mockCredentials);
-			const track = JSON.parse(headers["X-Li-Track"]);
-
-			expect(typeof track.timezoneOffset).toBe("number");
 		});
 	});
 });
