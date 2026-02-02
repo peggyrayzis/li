@@ -14,8 +14,7 @@ const PROFILE_LOOKUP_FIXTURE = {
 	],
 };
 
-const PROFILE_DECORATION_ID =
-	"com.linkedin.voyager.dash.deco.identity.profile.FullProfile-76";
+const PROFILE_DECORATION_ID = "com.linkedin.voyager.dash.deco.identity.profile.FullProfile-76";
 
 describe("profile command", () => {
 	const mockCredentials: LinkedInCredentials = {

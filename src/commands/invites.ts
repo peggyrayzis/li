@@ -32,8 +32,7 @@ interface AcceptInviteResult {
 
 const FLAGSHIP_INVITES_URL =
 	"https://www.linkedin.com/flagship-web/rsc-action/actions/pagination?sduiid=com.linkedin.sdui.pagers.mynetwork.invitationsList";
-const FLAGSHIP_INVITES_REFERER =
-	"https://www.linkedin.com/mynetwork/invitation-manager/received/";
+const FLAGSHIP_INVITES_REFERER = "https://www.linkedin.com/mynetwork/invitation-manager/received/";
 const FLAGSHIP_PAGE_INSTANCE =
 	"urn:li:page:d_flagship3_people_invitations;fkBHD5OCSzq7lUUo2+5Oiw==";
 const FLAGSHIP_TRACK =

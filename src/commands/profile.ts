@@ -9,10 +9,7 @@
 
 import type { LinkedInCredentials } from "../lib/auth.js";
 import { LinkedInClient } from "../lib/client.js";
-import {
-	LINKEDIN_PROFILE_BASE_URL,
-	LINKEDIN_PROFILE_DECORATION_ID,
-} from "../lib/constants.js";
+import { LINKEDIN_PROFILE_BASE_URL, LINKEDIN_PROFILE_DECORATION_ID } from "../lib/constants.js";
 import { parseProfile } from "../lib/parser.js";
 import { resolveRecipient } from "../lib/recipient.js";
 import { parseLinkedInUrl } from "../lib/url-parser.js";

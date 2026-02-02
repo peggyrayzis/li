@@ -1,0 +1,11 @@
+{
+  "log": {
+    "entries": [
+      {
+        "request": {
+          "url": "https://www.linkedin.com/voyager/api/voyagerMessagingGraphQL/graphql?queryId=messengerConversations.test123&variables=(mailboxUrn:urn%3Ali%3Afsd_profile%3AABC)"
+        }
+      }
+    ]
+  }
+}

@@ -13,6 +13,7 @@ import { connections } from "./commands/connections.js";
 import { acceptInvite, listInvites } from "./commands/invites.js";
 import { listConversations, readConversation } from "./commands/messages.js";
 import { profile } from "./commands/profile.js";
+import { queryIds } from "./commands/query-ids.js";
 import { send } from "./commands/send.js";
 import { whoami } from "./commands/whoami.js";
 import { type BrowserSource, resolveCredentials } from "./lib/auth.js";
@@ -283,6 +284,33 @@ program
 			const globalOpts = program.opts();
 			const credentials = await getCredentials(globalOpts);
 			const output = await send(credentials, recipient, message, { json: options.json });
+			console.log(output);
+		} catch (error) {
+			handleError(error);
+		}
+	});
+
+// ============================================================================
+// query-ids - Show or refresh cached GraphQL query IDs
+// ============================================================================
+program
+	.command("query-ids")
+	.description("Show or refresh cached LinkedIn GraphQL query IDs")
+	.option("--json", "Output as JSON")
+	.option("--refresh", "Refresh query IDs", false)
+	.option("--auto", "Auto-discover query IDs from LinkedIn bundles", false)
+	.option("--har <path>", "HAR file path", "www.linkedin.com.fullv3.har")
+	.action(async (options) => {
+		try {
+			const globalOpts = program.opts();
+			const credentials = options.auto ? await getCredentials(globalOpts) : undefined;
+			const output = await queryIds({
+				json: options.json,
+				refresh: options.refresh,
+				har: options.har,
+				auto: options.auto,
+				credentials,
+			});
 			console.log(output);
 		} catch (error) {
 			handleError(error);

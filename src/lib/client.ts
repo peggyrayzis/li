@@ -7,8 +7,7 @@ import type { LinkedInCredentials } from "./auth.js";
 import endpoints from "./endpoints.json" with { type: "json" };
 import { buildHeaders } from "./headers.js";
 
-const DEBUG_HTTP =
-	process.env.LI_DEBUG_HTTP === "1" || process.env.LI_DEBUG_HTTP === "true";
+const DEBUG_HTTP = process.env.LI_DEBUG_HTTP === "1" || process.env.LI_DEBUG_HTTP === "true";
 
 function debugHttp(message: string): void {
 	if (!DEBUG_HTTP) {
@@ -108,6 +107,10 @@ export class LinkedInClient {
 		this.baseUrl = endpoints.baseUrl;
 		// Build headers once per client instance to keep page instance consistent
 		this.headers = buildHeaders(this.credentials);
+	}
+
+	getCredentials(): LinkedInCredentials {
+		return this.credentials;
 	}
 
 	/**
@@ -277,7 +280,14 @@ export class LinkedInClient {
 				const body = (await response.json()) as { message?: string; error?: string };
 				details = body.message ?? body.error ?? undefined;
 			} catch {
-				// Ignore JSON parse errors
+				try {
+					const text = await response.text();
+					if (text) {
+						details = text.slice(0, 500);
+					}
+				} catch {
+					// Ignore body parse errors
+				}
 			}
 
 			throw new LinkedInApiError(response.status, getErrorMessage(response.status, details));

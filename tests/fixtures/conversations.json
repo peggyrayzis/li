@@ -1,79 +1,225 @@
 {
-  "elements": [
-    {
-      "dashEntityUrn": "urn:li:fsd_conversation:2-ABC123",
-      "entityUrn": "urn:li:msg_conversation:ABC123",
-      "read": true,
-      "groupChat": false,
-      "totalEventCount": 15,
-      "unreadCount": 0,
-      "lastActivityAt": 1706745600000,
-      "participants": [
+  "data": {
+    "_recipeType": "com.linkedin.graphql.types.TreeResponse",
+    "_type": "com.linkedin.graphql.types.TreeResponse",
+    "messengerConversationsBySyncToken": {
+      "_type": "com.linkedin.restli.common.CollectionResponse",
+      "_recipeType": "com.linkedin.restli.common.CollectionResponse",
+      "metadata": {
+        "_type": "com.linkedin.restli.common.CollectionMetadata",
+        "_recipeType": "com.linkedin.restli.common.CollectionMetadata",
+        "newSyncToken": "mock-sync-token"
+      },
+      "elements": [
         {
-          "miniProfile": {
-            "publicIdentifier": "janesmith",
-            "firstName": "Jane",
-            "lastName": "Smith",
-            "occupation": "Engineering Lead at Acme"
+          "_type": "com.linkedin.voyager.messaging.Conversation",
+          "_recipeType": "com.linkedin.voyager.messaging.Conversation",
+          "backendUrn": "urn:li:fsd_conversation:2-ABC123",
+          "entityUrn": "urn:li:msg_conversation:ABC123",
+          "read": true,
+          "groupChat": false,
+          "unreadCount": 0,
+          "lastActivityAt": 1706745600000,
+          "createdAt": 1706000000000,
+          "conversationParticipants": [
+            {
+              "entityUrn": "urn:li:fsd_conversationParticipant:1",
+              "backendUrn": "urn:li:fsd_profile:ABC123",
+              "participantType": {
+                "member": {
+                  "profileUrl": "https://www.linkedin.com/in/janesmith",
+                  "firstName": {
+                    "_type": "com.linkedin.common.Text",
+                    "_recipeType": "com.linkedin.common.Text",
+                    "attributes": [],
+                    "text": "Jane"
+                  },
+                  "lastName": {
+                    "_type": "com.linkedin.common.Text",
+                    "_recipeType": "com.linkedin.common.Text",
+                    "attributes": [],
+                    "text": "Smith"
+                  },
+                  "headline": {
+                    "_type": "com.linkedin.common.Text",
+                    "_recipeType": "com.linkedin.common.Text",
+                    "attributes": [],
+                    "text": "Engineering Lead at Acme"
+                  }
+                },
+                "agent": null,
+                "organization": null,
+                "custom": null
+              },
+              "hostIdentityUrn": "urn:li:fsd_profile:ABC123",
+              "showPremiumInBug": false,
+              "memberBadgeType": "NONE",
+              "showVerificationBadge": false,
+              "_type": "com.linkedin.voyager.messaging.ConversationParticipant",
+              "_recipeType": "com.linkedin.voyager.messaging.ConversationParticipant"
+            }
+          ],
+          "messages": {
+            "_type": "com.linkedin.restli.common.CollectionResponse",
+            "_recipeType": "com.linkedin.restli.common.CollectionResponse",
+            "elements": [
+              {
+                "_type": "com.linkedin.voyager.messaging.Event",
+                "_recipeType": "com.linkedin.voyager.messaging.Event",
+                "entityUrn": "urn:li:msg_event:AAA",
+                "backendUrn": "urn:li:msg_event:AAA",
+                "backendConversationUrn": "urn:li:fsd_conversation:2-ABC123",
+                "deliveredAt": 1706745600000,
+                "body": {
+                  "_type": "com.linkedin.common.Text",
+                  "_recipeType": "com.linkedin.common.Text",
+                  "attributes": [],
+                  "text": "Thanks for connecting! Would love to chat about devtools marketing."
+                },
+                "actor": {
+                  "entityUrn": "urn:li:fsd_profile:ABC123",
+                  "backendUrn": "urn:li:fsd_profile:ABC123",
+                  "hostIdentityUrn": "urn:li:fsd_profile:ABC123",
+                  "_type": "com.linkedin.voyager.messaging.ConversationParticipant",
+                  "_recipeType": "com.linkedin.voyager.messaging.ConversationParticipant",
+                  "showPremiumInBug": false,
+                  "showVerificationBadge": false,
+                  "participantType": {
+                    "member": {
+                      "profileUrl": "https://www.linkedin.com/in/janesmith",
+                      "firstName": {
+                        "_type": "com.linkedin.common.Text",
+                        "_recipeType": "com.linkedin.common.Text",
+                        "attributes": [],
+                        "text": "Jane"
+                      },
+                      "lastName": {
+                        "_type": "com.linkedin.common.Text",
+                        "_recipeType": "com.linkedin.common.Text",
+                        "attributes": [],
+                        "text": "Smith"
+                      },
+                      "headline": {
+                        "_type": "com.linkedin.common.Text",
+                        "_recipeType": "com.linkedin.common.Text",
+                        "attributes": [],
+                        "text": "Engineering Lead at Acme"
+                      }
+                    },
+                    "agent": null,
+                    "organization": null,
+                    "custom": null
+                  }
+                }
+              }
+            ]
           }
-        }
-      ],
-      "events": [
+        },
         {
-          "createdAt": 1706745600000,
-          "eventContent": {
-            "messageEvent": {
-              "body": "Thanks for connecting! Would love to chat about devtools marketing.",
-              "attachments": []
+          "_type": "com.linkedin.voyager.messaging.Conversation",
+          "_recipeType": "com.linkedin.voyager.messaging.Conversation",
+          "backendUrn": "urn:li:fsd_conversation:2-DEF456",
+          "entityUrn": "urn:li:msg_conversation:DEF456",
+          "read": false,
+          "groupChat": false,
+          "unreadCount": 1,
+          "lastActivityAt": 1706659200000,
+          "createdAt": 1706000000000,
+          "conversationParticipants": [
+            {
+              "entityUrn": "urn:li:fsd_conversationParticipant:2",
+              "backendUrn": "urn:li:fsd_profile:DEF456",
+              "participantType": {
+                "member": {
+                  "profileUrl": "https://www.linkedin.com/in/johndoe",
+                  "firstName": {
+                    "_type": "com.linkedin.common.Text",
+                    "_recipeType": "com.linkedin.common.Text",
+                    "attributes": [],
+                    "text": "John"
+                  },
+                  "lastName": {
+                    "_type": "com.linkedin.common.Text",
+                    "_recipeType": "com.linkedin.common.Text",
+                    "attributes": [],
+                    "text": "Doe"
+                  },
+                  "headline": {
+                    "_type": "com.linkedin.common.Text",
+                    "_recipeType": "com.linkedin.common.Text",
+                    "attributes": [],
+                    "text": "CTO at StartupCo"
+                  }
+                },
+                "agent": null,
+                "organization": null,
+                "custom": null
+              },
+              "hostIdentityUrn": "urn:li:fsd_profile:DEF456",
+              "showPremiumInBug": false,
+              "memberBadgeType": "NONE",
+              "showVerificationBadge": false,
+              "_type": "com.linkedin.voyager.messaging.ConversationParticipant",
+              "_recipeType": "com.linkedin.voyager.messaging.ConversationParticipant"
             }
-          },
-          "from": {
-            "miniProfile": {
-              "publicIdentifier": "janesmith"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "dashEntityUrn": "urn:li:fsd_conversation:2-DEF456",
-      "entityUrn": "urn:li:msg_conversation:DEF456",
-      "read": false,
-      "groupChat": false,
-      "totalEventCount": 3,
-      "unreadCount": 1,
-      "lastActivityAt": 1706659200000,
-      "participants": [
-        {
-          "miniProfile": {
-            "publicIdentifier": "johndoe",
-            "firstName": "John",
-            "lastName": "Doe",
-            "occupation": "CTO at StartupCo"
-          }
-        }
-      ],
-      "events": [
-        {
-          "createdAt": 1706659200000,
-          "eventContent": {
-            "messageEvent": {
-              "body": "Hey! Quick question about positioning for our dev tool launch.",
-              "attachments": []
-            }
-          },
-          "from": {
-            "miniProfile": {
-              "publicIdentifier": "johndoe"
-            }
+          ],
+          "messages": {
+            "_type": "com.linkedin.restli.common.CollectionResponse",
+            "_recipeType": "com.linkedin.restli.common.CollectionResponse",
+            "elements": [
+              {
+                "_type": "com.linkedin.voyager.messaging.Event",
+                "_recipeType": "com.linkedin.voyager.messaging.Event",
+                "entityUrn": "urn:li:msg_event:BBB",
+                "backendUrn": "urn:li:msg_event:BBB",
+                "backendConversationUrn": "urn:li:fsd_conversation:2-DEF456",
+                "deliveredAt": 1706659200000,
+                "body": {
+                  "_type": "com.linkedin.common.Text",
+                  "_recipeType": "com.linkedin.common.Text",
+                  "attributes": [],
+                  "text": "Hey! Quick question about positioning for our dev tool launch."
+                },
+                "actor": {
+                  "entityUrn": "urn:li:fsd_profile:DEF456",
+                  "backendUrn": "urn:li:fsd_profile:DEF456",
+                  "hostIdentityUrn": "urn:li:fsd_profile:DEF456",
+                  "_type": "com.linkedin.voyager.messaging.ConversationParticipant",
+                  "_recipeType": "com.linkedin.voyager.messaging.ConversationParticipant",
+                  "showPremiumInBug": false,
+                  "showVerificationBadge": false,
+                  "participantType": {
+                    "member": {
+                      "profileUrl": "https://www.linkedin.com/in/johndoe",
+                      "firstName": {
+                        "_type": "com.linkedin.common.Text",
+                        "_recipeType": "com.linkedin.common.Text",
+                        "attributes": [],
+                        "text": "John"
+                      },
+                      "lastName": {
+                        "_type": "com.linkedin.common.Text",
+                        "_recipeType": "com.linkedin.common.Text",
+                        "attributes": [],
+                        "text": "Doe"
+                      },
+                      "headline": {
+                        "_type": "com.linkedin.common.Text",
+                        "_recipeType": "com.linkedin.common.Text",
+                        "attributes": [],
+                        "text": "CTO at StartupCo"
+                      }
+                    },
+                    "agent": null,
+                    "organization": null,
+                    "custom": null
+                  }
+                }
+              }
+            ]
           }
         }
       ]
     }
-  ],
-  "paging": {
-    "total": 156,
-    "count": 20,
-    "start": 0
   }
 }

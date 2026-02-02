@@ -35,12 +35,6 @@ interface MeResponse {
 	included?: MiniProfileIncluded[];
 }
 
-interface NetworkInfoResponse {
-	followersCount: number;
-	connectionsCount: number;
-	followingCount?: number;
-}
-
 /**
  * Parse /me response into normalized profile.
  * Handles both legacy format (miniProfile) and normalized format (data + included).
@@ -70,16 +64,6 @@ function parseMeResponse(data: MeResponse): NormalizedProfile {
 		headline: mini.occupation,
 		location: "",
 		profileUrl: `${LINKEDIN_PROFILE_BASE_URL}${mini.publicIdentifier}`,
-	};
-}
-
-/**
- * Parse networkinfo response into network info.
- */
-function parseNetworkInfo(data: NetworkInfoResponse): NetworkInfo {
-	return {
-		followersCount: data.followersCount,
-		connectionsCount: data.connectionsCount,
 	};
 }
 

@@ -3,6 +3,7 @@ import type { LinkedInCredentials } from "../../../src/lib/auth.js";
 import conversationEventsFixture from "../../fixtures/conversation-events.json";
 // Load fixtures
 import conversationsFixture from "../../fixtures/conversations.json";
+import meFixture from "../../fixtures/me.json";
 
 // Mock request function - hoisted for use in mock factory
 const mockRequest = vi.fn();
@@ -31,31 +32,56 @@ describe("messages command", () => {
 
 	describe("listConversations", () => {
 		beforeEach(() => {
-			mockRequest.mockResolvedValue({
-				ok: true,
-				status: 200,
-				json: () => Promise.resolve(conversationsFixture),
+			mockRequest.mockImplementation((url: string) => {
+				if (url.includes("/me")) {
+					return Promise.resolve({
+						ok: true,
+						status: 200,
+						json: () => Promise.resolve(meFixture),
+					});
+				}
+
+				if (url.includes("/identity/dash/profiles")) {
+					return Promise.resolve({
+						ok: true,
+						status: 200,
+						json: () =>
+							Promise.resolve({
+								elements: [
+									{
+										entityUrn: "urn:li:fsd_profile:ABC123",
+									},
+								],
+							}),
+					});
+				}
+
+				if (url.includes("voyagerMessagingGraphQL/graphql")) {
+					return Promise.resolve({
+						ok: true,
+						status: 200,
+						json: () => Promise.resolve(conversationsFixture),
+					});
+				}
+
+				throw new Error(`Unexpected URL: ${url}`);
 			});
 		});
 
-		it("calls /messaging/conversations endpoint", async () => {
+		it("calls voyagerMessagingGraphQL conversations query", async () => {
 			await listConversations(mockCredentials);
 
 			expect(mockRequest).toHaveBeenCalledWith(
-				expect.stringContaining("/messaging/conversations"),
+				expect.stringContaining("/voyagerMessagingGraphQL/graphql"),
 				expect.any(Object),
 			);
 		});
 
-		it("passes pagination parameters when provided", async () => {
-			await listConversations(mockCredentials, { start: 20, count: 10 });
+		it("passes queryId and mailboxUrn variables", async () => {
+			await listConversations(mockCredentials);
 
 			expect(mockRequest).toHaveBeenCalledWith(
-				expect.stringMatching(/start=20/),
-				expect.any(Object),
-			);
-			expect(mockRequest).toHaveBeenCalledWith(
-				expect.stringMatching(/count=10/),
+				expect.stringContaining("queryId=messengerConversations."),
 				expect.any(Object),
 			);
 		});
@@ -69,6 +95,20 @@ describe("messages command", () => {
 			expect(result).toContain("@janesmith");
 			// Should contain message preview (truncated at 60 chars)
 			expect(result).toContain("devtools");
+		});
+
+		it("respects start and count parameters when provided", async () => {
+			const result = await listConversations(mockCredentials, {
+				start: 1,
+				count: 1,
+				json: true,
+			});
+
+			const parsed = JSON.parse(result);
+			expect(parsed.conversations).toHaveLength(1);
+			expect(parsed.paging.start).toBe(1);
+			expect(parsed.paging.count).toBe(1);
+			expect(parsed.paging.total).toBe(2);
 		});
 
 		it("indicates unread conversations", async () => {
@@ -86,7 +126,7 @@ describe("messages command", () => {
 			expect(parsed.conversations).toHaveLength(2);
 			expect(parsed.conversations[0].participant.username).toBe("janesmith");
 			expect(parsed.paging).toBeDefined();
-			expect(parsed.paging.total).toBe(156);
+			expect(parsed.paging.total).toBe(2);
 		});
 
 		it("includes conversation IDs in JSON output", async () => {

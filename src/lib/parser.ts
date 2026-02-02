@@ -33,6 +33,10 @@ interface LocalizedField {
 	};
 }
 
+interface TextField {
+	text?: string;
+}
+
 /**
  * Extracts the value from a LinkedIn localized field object.
  * Prefers en_US locale, falls back to first available locale.
@@ -66,6 +70,32 @@ export function extractLocalized(field: LocalizedField | string | null | undefin
 	}
 
 	return "";
+}
+
+/**
+ * Extracts the value from a LinkedIn text field object.
+ */
+function extractText(field: TextField | string | null | undefined): string {
+	if (field === null || field === undefined) {
+		return "";
+	}
+
+	if (typeof field === "string") {
+		return field;
+	}
+
+	if (typeof field.text === "string") {
+		return field.text;
+	}
+
+	return "";
+}
+
+function extractString(value: unknown): string | undefined {
+	if (typeof value === "string") {
+		return value;
+	}
+	return undefined;
 }
 
 /**
@@ -113,6 +143,51 @@ function parseMiniProfile(
 	};
 }
 
+function extractUsernameFromProfileUrl(profileUrl: string): string {
+	const match = profileUrl.match(/\/in\/([^/?#]+)/);
+	return match ? match[1] : "";
+}
+
+function parseParticipantType(
+	participantType: Record<string, unknown> | undefined,
+	urn = "",
+): NormalizedConnection {
+	const member = participantType?.member as Record<string, unknown> | undefined;
+	if (member) {
+		const profileUrl = (member.profileUrl as string) || LINKEDIN_PROFILE_BASE_URL;
+		return {
+			urn,
+			username: extractUsernameFromProfileUrl(profileUrl),
+			firstName: extractText(member.firstName as TextField),
+			lastName: extractText(member.lastName as TextField),
+			headline: extractText(member.headline as TextField),
+			profileUrl,
+		};
+	}
+
+	const organization = participantType?.organization as Record<string, unknown> | undefined;
+	if (organization) {
+		const profileUrl = (organization.pageUrl as string) || LINKEDIN_PROFILE_BASE_URL;
+		return {
+			urn,
+			username: extractUsernameFromProfileUrl(profileUrl),
+			firstName: extractText(organization.name as TextField),
+			lastName: "",
+			headline: extractText(organization.tagline as TextField),
+			profileUrl,
+		};
+	}
+
+	return {
+		urn,
+		username: "",
+		firstName: "",
+		lastName: "",
+		headline: "",
+		profileUrl: LINKEDIN_PROFILE_BASE_URL,
+	};
+}
+
 /**
  * Parses a raw profile response from Voyager API.
  * Works with both /identity/profiles/{slug}/profileView and /identity/dash/profiles responses.
@@ -125,10 +200,10 @@ export function parseProfile(raw: Record<string, unknown>): NormalizedProfile {
 	const included = raw.included as Array<Record<string, unknown>> | undefined;
 
 	const profileUrn =
-		(dataBag?.["*profile"] as string | undefined) ??
-		(dataBag?.profile as string | undefined) ??
-		(raw.profile as Record<string, unknown>)?.entityUrn ??
-		(raw.entityUrn as string | undefined);
+		extractString(dataBag?.["*profile"]) ??
+		extractString(dataBag?.profile) ??
+		extractString((raw.profile as Record<string, unknown> | undefined)?.entityUrn) ??
+		extractString(raw.entityUrn);
 
 	const includedProfile =
 		included?.find((item) => item.entityUrn === profileUrn) ??
@@ -147,8 +222,10 @@ export function parseProfile(raw: Record<string, unknown>): NormalizedProfile {
 	const industry = extractLocalized(dashProfile.industryName as LocalizedField);
 	const summary = extractLocalized(dashProfile.summary as LocalizedField);
 
+	const dashUrn = extractString(dashProfile.entityUrn);
+
 	return {
-		urn: (dashProfile.entityUrn as string) || profileUrn || "",
+		urn: dashUrn || profileUrn || "",
 		username,
 		firstName,
 		lastName,
@@ -201,16 +278,20 @@ export function parseConnection(raw: Record<string, unknown>): NormalizedConnect
  * These payloads are not JSON and require regex extraction.
  */
 export function parseConnectionsFromFlagshipRsc(payload: string): NormalizedConnection[] {
+	const normalizedPayload = payload.replace(/\\\//g, "/");
 	const connectionRegex = new RegExp(
-		String.raw`"url":"(https:\/\/www\.linkedin\.com\/in\/[^"]+)"[\s\S]{0,800}?"children":\["([^"]+)"\][\s\S]{0,800}?"children":\["([^"]+)"\]`,
+		String.raw`"url":"(https://www\.linkedin\.com/in/[^"]+)"[\s\S]{0,800}?"children":\["([^"]+)"\][\s\S]{0,800}?"children":\["([^"]+)"\]`,
 		"g",
 	);
 
 	const results: NormalizedConnection[] = [];
 	const seen = new Set<string>();
 
-	let match: RegExpExecArray | null;
-	while ((match = connectionRegex.exec(payload)) !== null) {
+	for (;;) {
+		const match = connectionRegex.exec(normalizedPayload);
+		if (!match) {
+			break;
+		}
 		const rawUrl = match[1];
 		const name = match[2].trim();
 		const headline = match[3].trim();
@@ -254,8 +335,11 @@ export function parseInvitationsFromFlagshipRsc(payload: string): NormalizedInvi
 	const results: NormalizedInvitation[] = [];
 	const seen = new Set<string>();
 
-	let match: RegExpExecArray | null;
-	while ((match = invitationRegex.exec(payload)) !== null) {
+	for (;;) {
+		const match = invitationRegex.exec(payload);
+		if (!match) {
+			break;
+		}
 		const urn = match[1];
 		const sharedSecret = match[2];
 		const invitationType = match[3];
@@ -320,14 +404,36 @@ export function parseMessage(raw: Record<string, unknown>, conversationId = ""):
 	const messageEvent = eventContent?.messageEvent as Record<string, unknown> | undefined;
 	const from = raw.from as Record<string, unknown> | undefined;
 	const miniProfile = from?.miniProfile as Record<string, unknown> | undefined;
+	const actor = raw.actor as Record<string, unknown> | undefined;
+	const actorParticipantType = actor?.participantType as Record<string, unknown> | undefined;
+	const sender =
+		miniProfile
+			? parseMiniProfile(miniProfile)
+			: actorParticipantType
+				? parseParticipantType(
+						actorParticipantType,
+						((actor?.backendUrn as string) || (actor?.entityUrn as string) || "") as string,
+					)
+				: parseMiniProfile(undefined);
 
 	return {
-		messageId: (raw.dashEntityUrn as string) || "",
-		conversationId,
-		sender: parseMiniProfile(miniProfile),
-		body: (messageEvent?.body as string) || "",
-		createdAt: new Date((raw.createdAt as number) || 0),
-		attachments: (messageEvent?.attachments as unknown[]) || [],
+		messageId:
+			(raw.dashEntityUrn as string) ||
+			(raw.entityUrn as string) ||
+			(raw.backendUrn as string) ||
+			"",
+		conversationId:
+			conversationId ||
+			(raw.backendConversationUrn as string) ||
+			((raw.conversation as Record<string, unknown> | undefined)?.entityUrn as string) ||
+			"",
+		sender,
+		body: (messageEvent?.body as string) || extractText(raw.body as TextField),
+		createdAt: new Date((raw.createdAt as number) || (raw.deliveredAt as number) || 0),
+		attachments:
+			(messageEvent?.attachments as unknown[]) ||
+			(raw.renderContent as unknown[]) ||
+			[],
 	};
 }
 
@@ -340,15 +446,35 @@ export function parseMessage(raw: Record<string, unknown>, conversationId = ""):
 export function parseConversation(raw: Record<string, unknown>): NormalizedConversation {
 	const participantsRaw = raw.participants as Array<Record<string, unknown>> | undefined;
 	const eventsRaw = raw.events as Array<Record<string, unknown>> | undefined;
-	const conversationId = (raw.dashEntityUrn as string) || "";
+	const conversationParticipantsRaw = raw.conversationParticipants as
+		| Array<Record<string, unknown>>
+		| undefined;
+	const messagesRaw = (raw.messages as Record<string, unknown> | undefined)?.elements as
+		| Array<Record<string, unknown>>
+		| undefined;
+	const conversationId =
+		(raw.dashEntityUrn as string) ||
+		(raw.backendUrn as string) ||
+		(raw.entityUrn as string) ||
+		"";
 
 	const participants: NormalizedConnection[] = (participantsRaw || []).map((p) => {
 		const miniProfile = p.miniProfile as Record<string, unknown> | undefined;
 		return parseMiniProfile(miniProfile);
 	});
 
+	const conversationParticipants: NormalizedConnection[] = (conversationParticipantsRaw || []).map(
+		(p) => {
+			const participantType = p.participantType as Record<string, unknown> | undefined;
+			const urn = (p.backendUrn as string) || (p.entityUrn as string) || "";
+			return parseParticipantType(participantType, urn);
+		},
+	);
+
+	const allParticipants = participants.length > 0 ? participants : conversationParticipants;
+
 	// Get the first participant or create an empty one
-	const participant: NormalizedConnection = participants[0] ?? {
+	const participant: NormalizedConnection = allParticipants[0] ?? {
 		urn: "",
 		username: "",
 		firstName: "",
@@ -363,15 +489,22 @@ export function parseConversation(raw: Record<string, unknown>): NormalizedConve
 		const parsed = parseMessage(eventsRaw[0], conversationId);
 		lastMessage = parsed.body;
 	}
+	if (!lastMessage && messagesRaw && messagesRaw.length > 0) {
+		const parsed = parseMessage(messagesRaw[0], conversationId);
+		lastMessage = parsed.body;
+	}
 
 	return {
 		conversationId,
 		participant,
-		participants,
+		participants: allParticipants,
 		lastMessage,
 		lastActivityAt: new Date((raw.lastActivityAt as number) || 0),
 		unreadCount: (raw.unreadCount as number) || 0,
-		totalEventCount: (raw.totalEventCount as number) || 0,
+		totalEventCount:
+			(raw.totalEventCount as number) ||
+			(messagesRaw ? messagesRaw.length : 0) ||
+			0,
 		read: (raw.read as boolean) || false,
 		groupChat: (raw.groupChat as boolean) || false,
 	};

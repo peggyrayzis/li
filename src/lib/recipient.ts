@@ -139,12 +139,10 @@ async function lookupProfileByUsername(
 		const meData = (await meResponse.json()) as MeResponse;
 		const meMini =
 			meData.miniProfile ??
-			(meData.included?.find((item) => item.publicIdentifier) ??
-				(meData.included && meData.included.length > 0 ? meData.included[0] : undefined));
+			meData.included?.find((item) => item.publicIdentifier) ??
+			(meData.included && meData.included.length > 0 ? meData.included[0] : undefined);
 		const meUsername = meMini?.publicIdentifier ?? "";
-		const meProfileUrn = normalizeProfileUrn(
-			meMini?.entityUrn ?? meMini?.dashEntityUrn ?? "",
-		);
+		const meProfileUrn = normalizeProfileUrn(meMini?.entityUrn ?? meMini?.dashEntityUrn ?? "");
 		const meMemberUrn = meMini?.objectUrn ?? "";
 
 		if (meUsername === username) {

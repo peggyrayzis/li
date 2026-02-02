@@ -58,9 +58,7 @@ interface BrowserCookieResult {
  * Build a full cookie header string from all cookies.
  */
 function buildFullCookieHeader(cookies: Cookie[]): string {
-	return cookies
-		.map((c) => `${c.name}=${c.value}`)
-		.join("; ");
+	return cookies.map((c) => `${c.name}=${c.value}`).join("; ");
 }
 
 async function extractBrowserCookies(
@@ -82,7 +80,8 @@ async function extractBrowserCookies(
 
 		const liAt = findCookieValue(result.cookies, LI_AT_COOKIE);
 		const jsessionId = findCookieValue(result.cookies, JSESSIONID_COOKIE);
-		const allCookies = result.cookies.length > 0 ? buildFullCookieHeader(result.cookies) : undefined;
+		const allCookies =
+			result.cookies.length > 0 ? buildFullCookieHeader(result.cookies) : undefined;
 
 		if (jsessionId) {
 			return { liAt, jsessionId: stripQuotes(jsessionId), allCookies, warnings };

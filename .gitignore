@@ -19,6 +19,7 @@ secrets.json
 cookies.txt
 session.json
 *.har
+.li/
 
 # IDE
 .idea/

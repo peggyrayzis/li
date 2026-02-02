@@ -98,6 +98,22 @@ This file tracks architectural and implementation decisions made during developm
 
 ---
 
+### 2026-02-02 Messages - Auto-discover Query IDs from LinkedIn Bundles
+**Context**: `messengerConversations` query IDs rotate frequently and manual HAR refresh is not acceptable for users.
+**Decision**: Add runtime query ID discovery that fetches the LinkedIn messaging page with session cookies, extracts bundle URLs, scans bundles for query IDs, and caches the results locally with an auto-refresh retry on 400 responses.
+**Reason**: Matches Bird-style query ID refresh while avoiding manual HAR steps; keeps `messages` usable in production as query IDs rotate.
+**Consequences**: Adds extra network requests when refresh is needed and may require updates if LinkedIn bundle patterns change.
+
+---
+
+### 2026-02-02 Messages - Use voyagerMessagingGraphQL for Conversation List
+**Context**: `/messaging/conversations` returns 500 in integration; HAR shows the messaging UI fetching conversations via `voyagerMessagingGraphQL` with `queryId=messengerConversations` and `mailboxUrn` variables.
+**Decision**: Fetch conversations with `voyagerMessagingGraphQL/graphql?queryId=messengerConversations...&variables=(mailboxUrn:...)` and map the GraphQL response to existing normalized conversation/message types.
+**Reason**: The REST list endpoint is failing while the GraphQL query is active in the web client; this keeps the CLI functional.
+**Consequences**: Messages list now depends on a queryId that may rotate and requires an extra `/me` call to resolve the mailbox URN.
+
+---
+
 ### 2026-02-02 Profile Fetch - Move to Voyager Dash Endpoint
 **Context**: `/identity/profiles/{username}/profileView` returns 410 and is no longer usable.
 **Decision**: Fetch profiles via `/identity/dash/profiles/{urn}?decorationId=com.linkedin.voyager.dash.deco.identity.profile.FullProfile-76`, resolving username/URL/URN to a profile URN first using `q=memberIdentity`.

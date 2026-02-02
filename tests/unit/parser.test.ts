@@ -14,6 +14,7 @@ import {
 	parseProfile,
 } from "../../src/lib/parser.js";
 import connectionsFixture from "../fixtures/connections.json";
+import conversationEventsFixture from "../fixtures/conversation-events.json";
 import conversationsFixture from "../fixtures/conversations.json";
 import invitationsFixture from "../fixtures/invitations.json";
 import profileFixture from "../fixtures/profile.json";
@@ -197,18 +198,20 @@ describe("parser", () => {
 
 	describe("parseConversation", () => {
 		it("parses conversation element from conversations response", () => {
-			const conversationElement = conversationsFixture.elements[0];
+			const conversationElement =
+				conversationsFixture.data.messengerConversationsBySyncToken.elements[0];
 			const result = parseConversation(conversationElement);
 
 			expect(result.conversationId).toBe("urn:li:fsd_conversation:2-ABC123");
 			expect(result.read).toBe(true);
 			expect(result.unreadCount).toBe(0);
-			expect(result.totalEventCount).toBe(15);
+			expect(result.totalEventCount).toBe(1);
 			expect(result.groupChat).toBe(false);
 		});
 
 		it("extracts participant info", () => {
-			const conversationElement = conversationsFixture.elements[0];
+			const conversationElement =
+				conversationsFixture.data.messengerConversationsBySyncToken.elements[0];
 			const result = parseConversation(conversationElement);
 
 			expect(result.participants).toHaveLength(1);
@@ -219,7 +222,8 @@ describe("parser", () => {
 		});
 
 		it("extracts primary participant", () => {
-			const conversationElement = conversationsFixture.elements[0];
+			const conversationElement =
+				conversationsFixture.data.messengerConversationsBySyncToken.elements[0];
 			const result = parseConversation(conversationElement);
 
 			expect(result.participant.username).toBe("janesmith");
@@ -227,7 +231,8 @@ describe("parser", () => {
 		});
 
 		it("extracts last message body as string", () => {
-			const conversationElement = conversationsFixture.elements[0];
+			const conversationElement =
+				conversationsFixture.data.messengerConversationsBySyncToken.elements[0];
 			const result = parseConversation(conversationElement);
 
 			expect(result.lastMessage).toBe(
@@ -236,7 +241,8 @@ describe("parser", () => {
 		});
 
 		it("parses lastActivityAt as Date", () => {
-			const conversationElement = conversationsFixture.elements[0];
+			const conversationElement =
+				conversationsFixture.data.messengerConversationsBySyncToken.elements[0];
 			const result = parseConversation(conversationElement);
 
 			expect(result.lastActivityAt).toBeInstanceOf(Date);
@@ -244,7 +250,8 @@ describe("parser", () => {
 		});
 
 		it("parses unread conversation correctly", () => {
-			const conversationElement = conversationsFixture.elements[1];
+			const conversationElement =
+				conversationsFixture.data.messengerConversationsBySyncToken.elements[1];
 			const result = parseConversation(conversationElement);
 
 			expect(result.read).toBe(false);
@@ -254,7 +261,8 @@ describe("parser", () => {
 		});
 
 		it("returns correct NormalizedConversation type", () => {
-			const conversationElement = conversationsFixture.elements[0];
+			const conversationElement =
+				conversationsFixture.data.messengerConversationsBySyncToken.elements[0];
 			const result: NormalizedConversation = parseConversation(conversationElement);
 
 			expect(result).toHaveProperty("conversationId");
@@ -271,7 +279,7 @@ describe("parser", () => {
 
 	describe("parseMessage", () => {
 		it("parses message event from conversation events", () => {
-			const messageEvent = conversationsFixture.elements[0].events[0];
+			const messageEvent = conversationEventsFixture.elements[0];
 			const result = parseMessage(messageEvent);
 
 			expect(result.body).toBe(
@@ -281,7 +289,7 @@ describe("parser", () => {
 		});
 
 		it("parses createdAt as Date", () => {
-			const messageEvent = conversationsFixture.elements[0].events[0];
+			const messageEvent = conversationEventsFixture.elements[0];
 			const result = parseMessage(messageEvent);
 
 			expect(result.createdAt).toBeInstanceOf(Date);
@@ -289,29 +297,31 @@ describe("parser", () => {
 		});
 
 		it("extracts attachments array", () => {
-			const messageEvent = conversationsFixture.elements[0].events[0];
+			const messageEvent = conversationEventsFixture.elements[0];
 			const result = parseMessage(messageEvent);
 
 			expect(result.attachments).toEqual([]);
 		});
 
 		it("handles different message event", () => {
-			const messageEvent = conversationsFixture.elements[1].events[0];
+			const messageEvent = conversationEventsFixture.elements[2];
 			const result = parseMessage(messageEvent);
 
-			expect(result.body).toBe("Hey! Quick question about positioning for our dev tool launch.");
-			expect(result.sender.username).toBe("johndoe");
+			expect(result.body).toBe(
+				"Hey! I saw your post about positioning dev tools. Really insightful!",
+			);
+			expect(result.sender.username).toBe("janesmith");
 		});
 
 		it("accepts optional conversationId parameter", () => {
-			const messageEvent = conversationsFixture.elements[0].events[0];
+			const messageEvent = conversationEventsFixture.elements[0];
 			const result = parseMessage(messageEvent, "test-conversation-id");
 
 			expect(result.conversationId).toBe("test-conversation-id");
 		});
 
 		it("returns correct NormalizedMessage type", () => {
-			const messageEvent = conversationsFixture.elements[0].events[0];
+			const messageEvent = conversationEventsFixture.elements[0];
 			const result: NormalizedMessage = parseMessage(messageEvent);
 
 			expect(result).toHaveProperty("body");

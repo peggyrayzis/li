@@ -231,7 +231,22 @@ describe("connect command", () => {
 				}),
 			});
 
-			await expect(connect(mockCredentials, "nonexistent")).rejects.toThrow(/not found/i);
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				status: 200,
+				json: async () => ({
+					miniProfile: {
+						publicIdentifier: "someoneelse",
+						entityUrn: "urn:li:fs_miniProfile:OTHER",
+					},
+				}),
+			});
+
+			const resultPromise = connect(mockCredentials, "nonexistent");
+			const expectation = expect(resultPromise).rejects.toThrow(/not found/i);
+
+			await vi.advanceTimersByTimeAsync(6000);
+			await expectation;
 		});
 
 		it("throws when connection request fails", async () => {

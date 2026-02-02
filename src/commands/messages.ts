@@ -6,26 +6,46 @@
  * - Read a specific conversation ("read" subcommand with conversation ID)
  */
 
+import { existsSync, readFileSync } from "node:fs";
 import type { LinkedInCredentials } from "../lib/auth.js";
-import { LinkedInClient } from "../lib/client.js";
+import { LinkedInApiError, LinkedInClient } from "../lib/client.js";
 import { parseConversation, parseMessage } from "../lib/parser.js";
+import { runtimeQueryIds } from "../lib/runtime-query-ids.js";
 import type { NormalizedConversation, NormalizedMessage } from "../lib/types.js";
 import { formatConversation, formatMessage, formatPagination } from "../output/human.js";
 import { formatJson } from "../output/json.js";
+
+const DEBUG_MESSAGES =
+	process.env.LI_DEBUG_MESSAGES === "1" || process.env.LI_DEBUG_MESSAGES === "true";
+const DEBUG_MESSAGES_RESPONSE =
+	process.env.LI_DEBUG_MESSAGES_RESPONSE === "1" ||
+	process.env.LI_DEBUG_MESSAGES_RESPONSE === "true";
+
+function debugMessages(message: string): void {
+	if (!DEBUG_MESSAGES) {
+		return;
+	}
+	process.stderr.write(`[li][messages] ${message}\n`);
+}
+
+async function debugResponseBody(response: Response): Promise<void> {
+	if (!DEBUG_MESSAGES_RESPONSE) {
+		return;
+	}
+	try {
+		const clone = response.clone();
+		const text = await clone.text();
+		const preview = text.slice(0, 500);
+		process.stderr.write(`[li][messages] response_preview=${preview}\n`);
+	} catch {
+		// Ignore response debug failures.
+	}
+}
 
 export interface MessagesOptions {
 	json?: boolean;
 	start?: number;
 	count?: number;
-}
-
-interface ConversationsApiResponse {
-	elements: Array<Record<string, unknown>>;
-	paging: {
-		total: number;
-		count: number;
-		start: number;
-	};
 }
 
 interface EventsApiResponse {
@@ -55,6 +75,14 @@ interface ReadConversationResult {
 	};
 }
 
+interface ConversationsGraphQLResponse {
+	data?: {
+		messengerConversationsBySyncToken?: {
+			elements?: Array<Record<string, unknown>>;
+		};
+	};
+}
+
 /**
  * List recent conversations.
  *
@@ -69,18 +97,77 @@ export async function listConversations(
 	const client = new LinkedInClient(credentials);
 	const start = options.start ?? 0;
 	const count = Math.min(options.count ?? 20, 50);
+	const apiCount = 20;
 
-	const response = await client.request(
-		`/messaging/conversations?keyVersion=LEGACY_INBOX&start=${start}&count=${count}`,
-		{ method: "GET" },
-	);
-	const data = (await response.json()) as ConversationsApiResponse;
+	const mailboxUrn = await resolveMailboxUrn(client);
+	const snapshotInfo = await runtimeQueryIds.getSnapshotInfo();
+	const snapshotHeaders = snapshotInfo?.snapshot.headers ?? {};
+	const snapshotVariables = snapshotInfo?.snapshot.variables?.messengerConversations;
+	const lastUpdatedBefore = Date.now();
+	const query = "(predicateUnions:List((conversationCategoryPredicate:(category:PRIMARY_INBOX))))";
+	const computedVariables = `(query:${query},count:${apiCount},mailboxUrn:${encodeURIComponent(mailboxUrn)},lastUpdatedBefore:${lastUpdatedBefore})`;
+	const variables = snapshotVariables
+		? snapshotVariables.replace(
+				/mailboxUrn:([^,)]+)/,
+				(_, value: string) => `mailboxUrn:${encodeURIComponent(value)}`,
+			)
+		: computedVariables;
+	const queryId = await resolveMessagingQueryId();
+	debugMessages(`queryId=${queryId} variables=${variables}`);
+	if (Object.keys(snapshotHeaders).length > 0) {
+		debugMessages(`headers=${JSON.stringify(snapshotHeaders)}`);
+	}
+	let response: Response;
+	try {
+		const requestHeaders = {
+			...snapshotHeaders,
+			Accept: "application/graphql",
+			"X-Li-Graphql-Token": credentials.csrfToken,
+		};
+		response = await client.request(
+			`/voyagerMessagingGraphQL/graphql?queryId=${queryId}&variables=${variables}`,
+			{ method: "GET", headers: requestHeaders },
+		);
+		await debugResponseBody(response);
+	} catch (error) {
+		if (error instanceof LinkedInApiError && error.status === 400) {
+			try {
+				await runtimeQueryIds.refreshFromLinkedIn(client, ["messengerConversations"]);
+				const refreshedQueryId = await resolveMessagingQueryId();
+				const refreshedSnapshot = await runtimeQueryIds.getSnapshotInfo();
+				const refreshedHeaders = refreshedSnapshot?.snapshot.headers ?? {};
+				const refreshRequestHeaders = {
+					...refreshedHeaders,
+					Accept: "application/graphql",
+					"X-Li-Graphql-Token": credentials.csrfToken,
+				};
+				response = await client.request(
+					`/voyagerMessagingGraphQL/graphql?queryId=${refreshedQueryId}&variables=${variables}`,
+					{ method: "GET", headers: refreshRequestHeaders },
+				);
+				await debugResponseBody(response);
+			} catch {
+				throw error;
+			}
+		} else {
+			throw error;
+		}
+	}
 
-	const conversations = data.elements.map((element) => parseConversation(element));
+	const data = (await response.json()) as ConversationsGraphQLResponse;
+	const elements = data.data?.messengerConversationsBySyncToken?.elements ?? [];
+
+	const conversations = elements.map((element) => parseConversation(element));
+	const pagedConversations = conversations.slice(start, start + count);
+	const total = conversations.length;
 
 	const result: ListConversationsResult = {
-		conversations,
-		paging: data.paging,
+		conversations: pagedConversations,
+		paging: {
+			total: Math.max(total, start + pagedConversations.length),
+			count: pagedConversations.length,
+			start,
+		},
 	};
 
 	if (options.json) {
@@ -88,6 +175,107 @@ export async function listConversations(
 	}
 
 	return formatHumanConversationsList(result);
+}
+
+async function resolveMailboxUrn(client: LinkedInClient): Promise<string> {
+	const response = await client.request("/me", { method: "GET" });
+	const data = (await response.json()) as Record<string, unknown>;
+	const miniProfile =
+		(data.miniProfile as Record<string, unknown> | undefined) ??
+		(data.included as Array<Record<string, unknown>> | undefined)?.find(
+			(item) => typeof item.publicIdentifier === "string",
+		);
+	const username = (miniProfile?.publicIdentifier as string | undefined) ?? "";
+	const urn =
+		(miniProfile?.entityUrn as string | undefined) ??
+		(miniProfile?.dashEntityUrn as string | undefined) ??
+		"";
+
+	if (urn.startsWith("urn:li:fs_miniProfile:")) {
+		return lookupProfileUrnByUsername(client, username, {
+			fallback: urn.replace("urn:li:fs_miniProfile:", "urn:li:fsd_profile:"),
+		});
+	}
+
+	if (urn.startsWith("urn:li:fsd_profile:")) {
+		return urn;
+	}
+
+	if (username) {
+		return lookupProfileUrnByUsername(client, username);
+	}
+
+	throw new Error("Could not resolve mailbox URN from /me response");
+}
+
+async function lookupProfileUrnByUsername(
+	client: LinkedInClient,
+	username: string,
+	options: { fallback?: string } = {},
+): Promise<string> {
+	if (!username) {
+		if (options.fallback) {
+			return options.fallback;
+		}
+		throw new Error("Could not resolve mailbox URN from /me response");
+	}
+
+	const response = await client.request(
+		`/identity/dash/profiles?q=memberIdentity&memberIdentity=${encodeURIComponent(username)}`,
+		{ method: "GET" },
+	);
+	const data = (await response.json()) as { elements?: Array<{ entityUrn?: string }> };
+	const urn = data.elements?.[0]?.entityUrn;
+
+	if (urn) {
+		return urn;
+	}
+
+	if (options.fallback) {
+		return options.fallback;
+	}
+
+	throw new Error("Could not resolve mailbox URN from /me response");
+}
+
+async function resolveMessagingQueryId(): Promise<string> {
+	if (process.env.LINKEDIN_MESSAGING_QUERY_ID) {
+		return process.env.LINKEDIN_MESSAGING_QUERY_ID;
+	}
+
+	const cached = await runtimeQueryIds.getId("messengerConversations");
+	if (cached) {
+		return cached;
+	}
+
+	const harPath = process.env.LINKEDIN_MESSAGING_HAR ?? "www.linkedin.com.fullv3.har";
+	if (existsSync(harPath)) {
+		try {
+			const raw = readFileSync(harPath, "utf8");
+			const parsed = JSON.parse(raw) as {
+				log?: { entries?: Array<{ request?: { url?: string } }> };
+			};
+			const entries = parsed.log?.entries ?? [];
+			for (const entry of entries) {
+				const url = entry.request?.url ?? "";
+				if (
+					url.includes("voyagerMessagingGraphQL/graphql") &&
+					url.includes("messengerConversations")
+				) {
+					const query = url.split("?")[1] ?? "";
+					const params = new URLSearchParams(query);
+					const queryId = params.get("queryId");
+					if (queryId) {
+						return queryId;
+					}
+				}
+			}
+		} catch {
+			// Fall through to default queryId.
+		}
+	}
+
+	return "messengerConversations.0d5e6781bbee71c3e51c8843c6519f48";
 }
 
 /**

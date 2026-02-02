@@ -30,7 +30,8 @@ const FLAGSHIP_CONNECTIONS_URL =
 	"https://www.linkedin.com/flagship-web/rsc-action/actions/pagination?sduiid=com.linkedin.sdui.pagers.mynetwork.connectionsList";
 const FLAGSHIP_CONNECTIONS_REFERER =
 	"https://www.linkedin.com/mynetwork/invite-connect/connections/";
-const FLAGSHIP_PAGE_INSTANCE = "urn:li:page:d_flagship3_people_connections;fkBHD5OCSzq7lUUo2+5Oiw==";
+const FLAGSHIP_PAGE_INSTANCE =
+	"urn:li:page:d_flagship3_people_connections;fkBHD5OCSzq7lUUo2+5Oiw==";
 const FLAGSHIP_TRACK =
 	'{"clientVersion":"0.2.3802","mpVersion":"0.2.3802","osName":"web","timezoneOffset":-5,"timezone":"America/New_York","deviceFormFactor":"DESKTOP","mpName":"web","displayDensity":2,"displayWidth":3024,"displayHeight":1964}';
 
@@ -59,12 +60,7 @@ export async function connections(
 		"X-Li-Track": FLAGSHIP_TRACK,
 	};
 
-	const normalizedConnections = await fetchConnectionsFromFlagship(
-		client,
-		headers,
-		start,
-		count,
-	);
+	const normalizedConnections = await fetchConnectionsFromFlagship(client, headers, start, count);
 
 	const result: ConnectionsResult = {
 		connections: normalizedConnections,
