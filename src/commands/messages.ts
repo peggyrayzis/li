@@ -10,7 +10,7 @@ import type { LinkedInCredentials } from "../lib/auth.js";
 import { LinkedInClient } from "../lib/client.js";
 import { parseConversation, parseMessage } from "../lib/parser.js";
 import type { NormalizedConversation, NormalizedMessage } from "../lib/types.js";
-import { formatConversation, formatMessage } from "../output/human.js";
+import { formatConversation, formatMessage, formatPagination } from "../output/human.js";
 import { formatJson } from "../output/json.js";
 
 export interface MessagesOptions {
@@ -145,7 +145,7 @@ function formatHumanConversationsList(result: ListConversationsResult): string {
 	// Add paging info
 	const { start, count, total } = result.paging;
 	const end = Math.min(start + count, total);
-	lines.push(`Showing ${start + 1}-${end} of ${total.toLocaleString()} conversations`);
+	lines.push(`${formatPagination(start, end, total)} conversations`);
 
 	return lines.join("\n");
 }

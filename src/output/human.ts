@@ -207,3 +207,16 @@ export function formatInvitation(invite: NormalizedInvitation): string {
 
 	return lines.join("\n");
 }
+
+/**
+ * Format pagination info for display.
+ * Shows "Showing X-Y of Z" format.
+ *
+ * @param start - Zero-based start index
+ * @param end - End index (exclusive)
+ * @param total - Total number of items
+ * @returns Formatted pagination string
+ */
+export function formatPagination(start: number, end: number, total: number): string {
+	return `Showing ${start + 1}-${end} of ${total.toLocaleString()}`;
+}

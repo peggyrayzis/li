@@ -4,6 +4,7 @@ import {
 	formatConversation,
 	formatInvitation,
 	formatMessage,
+	formatPagination,
 	formatProfile,
 	formatWhoami,
 } from "../../src/output/human.js";
@@ -362,6 +363,33 @@ describe("output", () => {
 			it("uses invite emoji", () => {
 				const result = formatInvitation(invitation);
 				expect(result).toContain("\u{1F4E8}");
+			});
+		});
+
+		describe("formatPagination", () => {
+			it("formats pagination with 1-based display indices", () => {
+				const result = formatPagination(0, 20, 100);
+				expect(result).toBe("Showing 1-20 of 100");
+			});
+
+			it("formats pagination with offset", () => {
+				const result = formatPagination(20, 40, 100);
+				expect(result).toBe("Showing 21-40 of 100");
+			});
+
+			it("formats large totals with locale separators", () => {
+				const result = formatPagination(0, 20, 1234);
+				expect(result).toBe("Showing 1-20 of 1,234");
+			});
+
+			it("handles single item", () => {
+				const result = formatPagination(0, 1, 1);
+				expect(result).toBe("Showing 1-1 of 1");
+			});
+
+			it("handles end of paginated list", () => {
+				const result = formatPagination(80, 100, 100);
+				expect(result).toBe("Showing 81-100 of 100");
 			});
 		});
 	});

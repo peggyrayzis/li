@@ -7,7 +7,7 @@ import type { LinkedInCredentials } from "../lib/auth.js";
 import { LinkedInClient } from "../lib/client.js";
 import { parseConnection } from "../lib/parser.js";
 import type { NormalizedConnection } from "../lib/types.js";
-import { formatConnection } from "../output/human.js";
+import { formatConnection, formatPagination } from "../output/human.js";
 import { formatJson } from "../output/json.js";
 
 export interface ConnectionsOptions {
@@ -87,7 +87,7 @@ function formatHumanOutput(result: ConnectionsResult): string {
 	// Add paging info
 	const { start, count, total } = result.paging;
 	const end = Math.min(start + count, total);
-	lines.push(`Showing ${start + 1}-${end} of ${total.toLocaleString()} connections`);
+	lines.push(`${formatPagination(start, end, total)} connections`);
 
 	return lines.join("\n");
 }
