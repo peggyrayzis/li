@@ -5,6 +5,7 @@
 
 import type { LinkedInCredentials } from "../lib/auth.js";
 import { LinkedInClient } from "../lib/client.js";
+import { LINKEDIN_PROFILE_BASE_URL } from "../lib/constants.js";
 import endpoints from "../lib/endpoints.json" with { type: "json" };
 import { formatWhoami } from "../output/human.js";
 import { formatJson } from "../output/json.js";
@@ -43,7 +44,7 @@ function parseMeResponse(data: MeResponse): NormalizedProfile {
 		lastName: mini.lastName,
 		headline: mini.occupation,
 		location: "",
-		profileUrl: `https://www.linkedin.com/in/${mini.publicIdentifier}`,
+		profileUrl: `${LINKEDIN_PROFILE_BASE_URL}${mini.publicIdentifier}`,
 	};
 }
 

@@ -9,6 +9,7 @@
 
 import type { LinkedInCredentials } from "../lib/auth.js";
 import { LinkedInClient } from "../lib/client.js";
+import { LINKEDIN_PROFILE_BASE_URL } from "../lib/constants.js";
 import endpoints from "../lib/endpoints.json" with { type: "json" };
 import { parseProfile } from "../lib/parser.js";
 import { parseLinkedInUrl } from "../lib/url-parser.js";
@@ -68,7 +69,7 @@ export async function profile(
 	// Add profile URL for display
 	const profileWithUrl = {
 		...normalizedProfile,
-		profileUrl: `https://linkedin.com/in/${normalizedProfile.username}`,
+		profileUrl: `${LINKEDIN_PROFILE_BASE_URL}${normalizedProfile.username}`,
 	};
 
 	// Format output based on options
