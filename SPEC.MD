@@ -15,7 +15,7 @@ Human output by default, --json for machines. Pretty, readable terminal output w
 CLI first, library second. Ship a CLI binary, but export a LinkedInClient class so it works as an importable Node.js library too.
 Own every line. No external LinkedIn API libraries. The Voyager HTTP calls are simple enough to own directly (~300 lines for the core client). Existing community libraries are unreliable — repos go private, maintainers disappear, LinkedIn actively fights them. We use them as reference implementations only.
 Undocumented API, expect breakage. LinkedIn can change Voyager endpoints at any time. Be honest about this in the README. Ship endpoint mappings that can be updated without a new release.
-Stable endpoints first. v0.1 uses only REST-li endpoints (no rotating queryIds). GraphQL-dependent features (follower list, following list) are deferred to v0.2 with a queryId maintenance strategy.
+Stable endpoints first. v0.1 uses REST-li endpoints with one GraphQL exception: messaging list uses a rotating queryId and a lightweight refresh path. Most GraphQL-dependent features (follower list, following list) are deferred to v0.2 with a fuller queryId maintenance strategy.
 Agent-friendly from day one. Designed to be called by Claude, GPT, or any coding agent that can shell out.
 
 
@@ -60,26 +60,27 @@ Endpoint Stability Tiers
 LinkedIn's Voyager API endpoints fall into two stability categories. This distinction drives our release plan.
 Tier 1 — Stable REST-li (v0.1)
 These use standard REST-li protocol with predictable URLs. No rotating IDs, no GraphQL. They break only when LinkedIn restructures the endpoint entirely (rare).
-EndpointUsed By/mewhoami/identity/profiles/{slug}/networkinfowhoami (follower/connection counts)/identity/profiles/{slug}/profileViewprofile/identity/dash/profilesusername → URN resolution/relationships/dash/connectionsconnections (paginated list)/growth/normInvitationsconnect (send request)/relationships/invitationViewsinvites (list pending)/relationships/invitations/{id}invites --accept/messaging/conversationsmessages (list/create)/messaging/conversations/{id}/eventsmessages (read/send)
+EndpointUsed By/mewhoami/identity/profiles/{slug}/networkinfowhoami (follower/connection counts)/identity/profiles/{slug}/profileViewprofile/identity/dash/profilesusername → URN resolution/relationships/dash/connectionsconnections (paginated list)/growth/normInvitationsconnect (send request)/relationships/invitationViewsinvites (list pending)/relationships/invitations/{id}invites --accept/messaging/conversationsmessages (create)/messaging/conversations/{id}/eventsmessages (read/send)
+Messaging list exception (v0.1): list conversations uses GraphQL with a rotating queryId (see below).
 Tier 2 — GraphQL with Rotating queryId (v0.2+)
 These hit /voyager/api/graphql and require a queryId parameter that rotates on LinkedIn redeployments. When the ID rotates, the endpoint returns 400 until you discover the new ID.
 EndpointUsed ByqueryId PatternGraphQL followersfollowers (list)voyagerIdentityDashFollowers.<hash>GraphQL followingfollowing (list)voyagerIdentityDashFollowing.<hash>GraphQL search clusterssearch (some modes)voyagerSearchDashClusters.<hash>
-queryId maintenance strategy (v0.2):
+queryId maintenance strategy (v0.1 messaging list + v0.2):
 
 Ship known-good queryIds in src/lib/endpoints.json
 On 400/404, fetch linkedin.com's webpack bundles and regex for current IDs (~50 lines, 2-3s penalty)
 Cache discovered IDs locally at ~/.config/li/queryids.json
-li update-endpoints command for manual refresh
+li query-ids command for manual refresh
 Fallback: degrade to count-only mode (counts come from stable /networkinfo)
 
 
 CLI Commands
 Naming Convention
 The binary is li. Commands follow the pattern li <verb> [args] [flags].
-v0.1 Commands — Stable Endpoints Only
+v0.1 Commands — Mostly Stable Endpoints
 
 Messaging (DMs) ⭐ Priority
-bash# List conversations
+bash# List conversations (first page only for now; may be incomplete)
 li messages [-n 10]                      # Recent conversations (most recent first)
 li messages --unread                     # Unread conversations only
 li messages --json                       # Full conversation metadata as JSON
@@ -114,6 +115,12 @@ done
 
 # Agent checks for replies
 li messages --unread --json | jq '.[] | {from: .participant, preview: .lastMessage}'
+
+Query IDs (messaging list)
+bash# Refresh/inspect messaging queryId cache
+li query-ids
+li query-ids --refresh --auto
+li query-ids --refresh --har ~/Downloads/www.linkedin.com.har
 
 Connections & Network ⭐ Priority
 All v0.1 connection commands use stable REST-li endpoints (no GraphQL, no queryId rotation).
@@ -259,9 +266,9 @@ X-Li-Lang: en_US
 X-Li-Track: {"clientVersion":"1.13.8201","mpVersion":"1.13.8201","osName":"web","timezoneOffset":-8,"timezone":"America/Los_Angeles","deviceFormFactor":"DESKTOP","mpName":"voyager-web"}
 X-Restli-Protocol-Version: 2.0.0
 Accept: application/vnd.linkedin.normalized+json+2.1
-Endpoint Reference — v0.1 (Stable REST-li)
+Endpoint Reference — v0.1 (Stable REST-li, plus one GraphQL exception)
 Messaging Endpoints
-CommandMethodEndpointNotesmessages (list)GET/messaging/conversationsReturns 20/page. Paginate with createdBefore timestamp. keyVersion=LEGACY_INBOX param required.messages (thread)GET/messaging/conversations/{conversationId}/eventsMessage events in a conversation. Paginate with createdBefore.send (existing)POST/messaging/conversations/{conversationId}/eventsBody: { "eventCreate": { "value": { "com.linkedin.voyager.messaging.create.MessageCreate": { "body": "text", "attachments": [] } } } }send (new)POST/messaging/conversationsBody includes recipients array of profile URNs + message. Creates conversation + sends first message.messages --seenPOST/messaging/conversations/{conversationId}PATCH: { "patch": { "$set": { "read": true } } }messages --unreadGET/messaging/conversations?filters=List(UNREAD)Filters to unread only.
+CommandMethodEndpointNotesmessages (list)GET/voyagerMessagingGraphQL/graphql?queryId=messengerConversations.<hash>&variables=...GraphQL queryId rotates; v0.1 fetches the first page only.messages (thread)GET/messaging/conversations/{conversationId}/eventsMessage events in a conversation. Paginate with createdBefore.send (existing)POST/messaging/conversations/{conversationId}/eventsBody: { "eventCreate": { "value": { "com.linkedin.voyager.messaging.create.MessageCreate": { "body": "text", "attachments": [] } } } }send (new)POST/messaging/conversationsBody includes recipients array of profile URNs + message. Creates conversation + sends first message.messages --seenPOST/messaging/conversations/{conversationId}PATCH: { "patch": { "$set": { "read": true } } }messages --unreadGET/messaging/conversations?filters=List(UNREAD)Filters to unread only.
 Messaging resolution flow:
 When a user runs li send <username> "Hello":
 
@@ -312,7 +319,7 @@ Pagination: increment start by count until start >= paging.total.
 Other v0.1 Endpoints
 CommandMethodEndpointwhoamiGET/me + /identity/profiles/{slug}/networkinfo
 Endpoint Reference — v0.2+ (GraphQL)
-These require queryId management. Not used in v0.1.
+These require queryId management. Not used in v0.1 except for messaging list (see above).
 CommandMethodEndpointqueryId Patternfollowers (list)GET/graphql?variables=(start:0,count:20)&queryId=...voyagerIdentityDashFollowers.<hash>following (list)GET/graphql?variables=(start:0,count:20)&queryId=...voyagerIdentityDashFollowing.<hash>followPOST/feed/dash/followingStates/urn:li:fsd_followingState:urn:li:fsd_profile:{id}PATCH: { "patch": { "$set": { "following": true } } }unfollowPOSTsame as followPATCH: { "patch": { "$set": { "following": false } } }searchGET/graphql?...voyagerSearchDashClusters.<hash>feedGET/feed/updatesV2?...reactPOST/normSocialActions/{urn}/reactcommentPOST/feed/commentsdisconnectPOST/identity/profiles/{username}DELETE connection
 
 Note: LinkedIn uses REST-li protocol with a decoration query parameter for field selection. Endpoints may shift between /voyager/api/ and /voyager/api/graphql as LinkedIn migrates internally. The endpoint mapping file should be versioned and updatable.
@@ -477,7 +484,7 @@ Tools exposed: linkedin_send_message, linkedin_get_messages, linkedin_get_connec
 
 Release Plan
 v0.1 — Messaging + Connections MVP (2–3 weeks)
-All stable REST-li endpoints. Zero GraphQL dependency.
+All stable REST-li endpoints except messaging list, which uses a rotating GraphQL queryId.
 
 whoami, check (auth validation + network counts)
 messages (list conversations, read threads, mark seen)
@@ -536,7 +543,7 @@ Windows support
 
 
 Risks & Mitigations
-RiskImpactMitigationLinkedIn changes REST-li endpointsv0.1 commands breakEndpoint mapping in endpoints.json, updatable without code change. REST-li endpoints historically stable.GraphQL queryId rotation (v0.2)Follower/following list breaksAuto-sniff from webpack bundles, cache locally, degrade to count-only modeMessaging rate limitsDMs throttled or blockedReactive: back off on 429. README documents safe pacing (~30s between sends).LinkedIn detects bot messaging patternsAccount restriction or messaging banRealistic pacing, jitter between sends, no templated mass sends, clear README warningsLinkedIn blocks cookie-based API accessTool stops working entirelyMonitor for signs. Fall back to official OAuth as degraded mode.LinkedIn TOS enforcementAccount banBig disclaimer in README. Personal use, not scraping. Same risk profile as Bird for X.Cookie extraction breaks across OS updatesAuth fails on some platformsUse sweet-cookie (maintained by Bird ecosystem). Fall back to env var / manual cookie entry.Connection-only messaging restrictionCan't DM non-connectionsDetect and surface clear error. InMail support for premium accounts in v0.5.Community library disappearanceNo reference implementationsOwn every line. Libraries used as reference only, not runtime dependencies. Already happened with tomquirk repo going private.
+RiskImpactMitigationLinkedIn changes REST-li endpointsv0.1 commands breakEndpoint mapping in endpoints.json, updatable without code change. REST-li endpoints historically stable.GraphQL queryId rotation (v0.1 messaging list)Conversation list breaksAuto-sniff from webpack bundles, cache locally, degrade to cached/stale queryId until refreshed.Messaging rate limitsDMs throttled or blockedReactive: back off on 429. README documents safe pacing (~30s between sends).LinkedIn detects bot messaging patternsAccount restriction or messaging banRealistic pacing, jitter between sends, no templated mass sends, clear README warningsLinkedIn blocks cookie-based API accessTool stops working entirelyMonitor for signs. Fall back to official OAuth as degraded mode.LinkedIn TOS enforcementAccount banBig disclaimer in README. Personal use, not scraping. Same risk profile as Bird for X.Cookie extraction breaks across OS updatesAuth fails on some platformsUse sweet-cookie (maintained by Bird ecosystem). Fall back to env var / manual cookie entry.Connection-only messaging restrictionCan't DM non-connectionsDetect and surface clear error. InMail support for premium accounts in v0.5.Community library disappearanceNo reference implementationsOwn every line. Libraries used as reference only, not runtime dependencies. Already happened with tomquirk repo going private.
 
 Naming
 li — two characters, instantly recognizable. Matches LinkedIn's own internal abbreviation (all URNs start with urn:li:). Published as @peggyrayzis/li.

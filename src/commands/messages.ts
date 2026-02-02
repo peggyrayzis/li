@@ -20,6 +20,7 @@ const DEBUG_MESSAGES =
 const DEBUG_MESSAGES_RESPONSE =
 	process.env.LI_DEBUG_MESSAGES_RESPONSE === "1" ||
 	process.env.LI_DEBUG_MESSAGES_RESPONSE === "true";
+const MESSAGING_QUERY_ID_OPERATIONS = ["messengerConversations"] as const;
 
 function debugMessages(message: string): void {
 	if (!DEBUG_MESSAGES) {
@@ -40,6 +41,31 @@ async function debugResponseBody(response: Response): Promise<void> {
 	} catch {
 		// Ignore response debug failures.
 	}
+}
+
+function isQueryIdError(error: unknown): error is LinkedInApiError {
+	return (
+		error instanceof LinkedInApiError &&
+		(error.status === 400 || error.status === 403 || error.status === 404)
+	);
+}
+
+async function requestConversations(
+	client: LinkedInClient,
+	credentials: LinkedInCredentials,
+	queryId: string,
+	variables: string,
+	headers: Record<string, string>,
+): Promise<Response> {
+	const requestHeaders = {
+		...headers,
+		Accept: "application/graphql",
+		"X-Li-Graphql-Token": credentials.csrfToken,
+	};
+	return client.request(
+		`/voyagerMessagingGraphQL/graphql?queryId=${queryId}&variables=${variables}`,
+		{ method: "GET", headers: requestHeaders },
+	);
 }
 
 export interface MessagesOptions {
@@ -119,38 +145,60 @@ export async function listConversations(
 	}
 	let response: Response;
 	try {
-		const requestHeaders = {
-			...snapshotHeaders,
-			Accept: "application/graphql",
-			"X-Li-Graphql-Token": credentials.csrfToken,
-		};
-		response = await client.request(
-			`/voyagerMessagingGraphQL/graphql?queryId=${queryId}&variables=${variables}`,
-			{ method: "GET", headers: requestHeaders },
+		response = await requestConversations(
+			client,
+			credentials,
+			queryId,
+			variables,
+			snapshotHeaders,
 		);
 		await debugResponseBody(response);
 	} catch (error) {
-		if (error instanceof LinkedInApiError && error.status === 400) {
-			try {
-				await runtimeQueryIds.refreshFromLinkedIn(client, ["messengerConversations"]);
-				const refreshedQueryId = await resolveMessagingQueryId();
-				const refreshedSnapshot = await runtimeQueryIds.getSnapshotInfo();
-				const refreshedHeaders = refreshedSnapshot?.snapshot.headers ?? {};
-				const refreshRequestHeaders = {
-					...refreshedHeaders,
-					Accept: "application/graphql",
-					"X-Li-Graphql-Token": credentials.csrfToken,
-				};
-				response = await client.request(
-					`/voyagerMessagingGraphQL/graphql?queryId=${refreshedQueryId}&variables=${variables}`,
-					{ method: "GET", headers: refreshRequestHeaders },
-				);
-				await debugResponseBody(response);
-			} catch {
-				throw error;
-			}
-		} else {
+		if (!isQueryIdError(error)) {
 			throw error;
+		}
+
+		try {
+			await runtimeQueryIds.refreshFromLinkedIn(client, [...MESSAGING_QUERY_ID_OPERATIONS]);
+			const refreshedQueryId = await resolveMessagingQueryId();
+			const refreshedSnapshot = await runtimeQueryIds.getSnapshotInfo();
+			const refreshedHeaders = refreshedSnapshot?.snapshot.headers ?? {};
+			response = await requestConversations(
+				client,
+				credentials,
+				refreshedQueryId,
+				variables,
+				refreshedHeaders,
+			);
+			await debugResponseBody(response);
+		} catch (refreshError) {
+			if (!isQueryIdError(refreshError)) {
+				throw refreshError;
+			}
+
+			const harPath =
+				process.env.LINKEDIN_MESSAGING_HAR ?? "www.linkedin.com.fullv3.har";
+			if (!existsSync(harPath)) {
+				throw new Error(
+					"Messaging queryId appears stale and could not be refreshed automatically. " +
+						"Export a HAR from linkedin.com/messaging and run: " +
+						"li query-ids --refresh --har <path> " +
+						"or set LINKEDIN_MESSAGING_HAR to the HAR path.",
+				);
+			}
+
+			await runtimeQueryIds.refreshFromHar([...MESSAGING_QUERY_ID_OPERATIONS], harPath);
+			const harQueryId = await resolveMessagingQueryId();
+			const harSnapshot = await runtimeQueryIds.getSnapshotInfo();
+			const harHeaders = harSnapshot?.snapshot.headers ?? {};
+			response = await requestConversations(
+				client,
+				credentials,
+				harQueryId,
+				variables,
+				harHeaders,
+			);
+			await debugResponseBody(response);
 		}
 	}
 

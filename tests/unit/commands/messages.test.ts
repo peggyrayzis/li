@@ -4,16 +4,22 @@ import conversationEventsFixture from "../../fixtures/conversation-events.json";
 // Load fixtures
 import conversationsFixture from "../../fixtures/conversations.json";
 import meFixture from "../../fixtures/me.json";
+import { LinkedInApiError } from "../../../src/lib/client.js";
+import { runtimeQueryIds } from "../../../src/lib/runtime-query-ids.js";
 
 // Mock request function - hoisted for use in mock factory
 const mockRequest = vi.fn();
 
-// Mock the client module with a class
-vi.mock("../../../src/lib/client.js", () => ({
-	LinkedInClient: class MockLinkedInClient {
-		request = mockRequest;
-	},
-}));
+// Mock the client module with a class, but keep LinkedInApiError
+vi.mock("../../../src/lib/client.js", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../../../src/lib/client.js")>();
+	return {
+		...actual,
+		LinkedInClient: class MockLinkedInClient {
+			request = mockRequest;
+		},
+	};
+});
 
 import { listConversations, readConversation } from "../../../src/commands/messages.js";
 
@@ -134,6 +140,71 @@ describe("messages command", () => {
 
 			const parsed = JSON.parse(result);
 			expect(parsed.conversations[0].conversationId).toBeDefined();
+		});
+
+		it("refreshes queryId on 400 and retries", async () => {
+			const refreshSpy = vi
+				.spyOn(runtimeQueryIds, "refreshFromLinkedIn")
+				.mockResolvedValue({
+					fetchedAt: "2025-01-01T00:00:00.000Z",
+					ids: { messengerConversations: "messengerConversations.test123" },
+					discovery: { harPath: "linkedIn-html" },
+				});
+			const getIdSpy = vi
+				.spyOn(runtimeQueryIds, "getId")
+				.mockResolvedValue("messengerConversations.test123");
+			const snapshotSpy = vi
+				.spyOn(runtimeQueryIds, "getSnapshotInfo")
+				.mockResolvedValue(null);
+
+			let graphqlCalls = 0;
+			mockRequest.mockImplementation((url: string) => {
+				if (url.includes("/me")) {
+					return Promise.resolve({
+						ok: true,
+						status: 200,
+						json: () => Promise.resolve(meFixture),
+					});
+				}
+
+				if (url.includes("/identity/dash/profiles")) {
+					return Promise.resolve({
+						ok: true,
+						status: 200,
+						json: () =>
+							Promise.resolve({
+								elements: [
+									{
+										entityUrn: "urn:li:fsd_profile:ABC123",
+									},
+								],
+							}),
+					});
+				}
+
+				if (url.includes("voyagerMessagingGraphQL/graphql")) {
+					graphqlCalls += 1;
+					if (graphqlCalls === 1) {
+						return Promise.reject(new LinkedInApiError(400, "Invalid request"));
+					}
+					return Promise.resolve({
+						ok: true,
+						status: 200,
+						json: () => Promise.resolve(conversationsFixture),
+					});
+				}
+
+				throw new Error(`Unexpected URL: ${url}`);
+			});
+
+			const result = await listConversations(mockCredentials);
+
+			expect(result).toContain("Jane Smith");
+			expect(refreshSpy).toHaveBeenCalledTimes(1);
+
+			refreshSpy.mockRestore();
+			getIdSpy.mockRestore();
+			snapshotSpy.mockRestore();
 		});
 	});
 
