@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LinkedInCredentials } from "../../../src/lib/auth.js";
+import { LinkedInApiError } from "../../../src/lib/client.js";
+import { runtimeQueryIds } from "../../../src/lib/runtime-query-ids.js";
 import conversationEventsFixture from "../../fixtures/conversation-events.json";
 // Load fixtures
 import conversationsFixture from "../../fixtures/conversations.json";
 import meFixture from "../../fixtures/me.json";
-import { LinkedInApiError } from "../../../src/lib/client.js";
-import { runtimeQueryIds } from "../../../src/lib/runtime-query-ids.js";
 
 // Mock request function - hoisted for use in mock factory
 const mockRequest = vi.fn();
@@ -143,19 +143,15 @@ describe("messages command", () => {
 		});
 
 		it("refreshes queryId on 400 and retries", async () => {
-			const refreshSpy = vi
-				.spyOn(runtimeQueryIds, "refreshFromLinkedIn")
-				.mockResolvedValue({
-					fetchedAt: "2025-01-01T00:00:00.000Z",
-					ids: { messengerConversations: "messengerConversations.test123" },
-					discovery: { harPath: "linkedIn-html" },
-				});
+			const refreshSpy = vi.spyOn(runtimeQueryIds, "refreshFromLinkedIn").mockResolvedValue({
+				fetchedAt: "2025-01-01T00:00:00.000Z",
+				ids: { messengerConversations: "messengerConversations.test123" },
+				discovery: { harPath: "linkedIn-html" },
+			});
 			const getIdSpy = vi
 				.spyOn(runtimeQueryIds, "getId")
 				.mockResolvedValue("messengerConversations.test123");
-			const snapshotSpy = vi
-				.spyOn(runtimeQueryIds, "getSnapshotInfo")
-				.mockResolvedValue(null);
+			const snapshotSpy = vi.spyOn(runtimeQueryIds, "getSnapshotInfo").mockResolvedValue(null);
 
 			let graphqlCalls = 0;
 			mockRequest.mockImplementation((url: string) => {

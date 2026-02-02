@@ -145,13 +145,7 @@ export async function listConversations(
 	}
 	let response: Response;
 	try {
-		response = await requestConversations(
-			client,
-			credentials,
-			queryId,
-			variables,
-			snapshotHeaders,
-		);
+		response = await requestConversations(client, credentials, queryId, variables, snapshotHeaders);
 		await debugResponseBody(response);
 	} catch (error) {
 		if (!isQueryIdError(error)) {
@@ -176,8 +170,7 @@ export async function listConversations(
 				throw refreshError;
 			}
 
-			const harPath =
-				process.env.LINKEDIN_MESSAGING_HAR ?? "www.linkedin.com.fullv3.har";
+			const harPath = process.env.LINKEDIN_MESSAGING_HAR ?? "www.linkedin.com.fullv3.har";
 			if (!existsSync(harPath)) {
 				throw new Error(
 					"Messaging queryId appears stale and could not be refreshed automatically. " +
@@ -191,13 +184,7 @@ export async function listConversations(
 			const harQueryId = await resolveMessagingQueryId();
 			const harSnapshot = await runtimeQueryIds.getSnapshotInfo();
 			const harHeaders = harSnapshot?.snapshot.headers ?? {};
-			response = await requestConversations(
-				client,
-				credentials,
-				harQueryId,
-				variables,
-				harHeaders,
-			);
+			response = await requestConversations(client, credentials, harQueryId, variables, harHeaders);
 			await debugResponseBody(response);
 		}
 	}

@@ -57,7 +57,6 @@ describe("whoami command", () => {
 				}
 				return Promise.reject(new Error(`Unexpected path: ${path}`));
 			});
-
 		});
 
 		it("calls /me endpoint to get current user", async () => {
