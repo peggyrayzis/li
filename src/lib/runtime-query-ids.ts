@@ -341,6 +341,32 @@ function buildHtmlQueryIdEncodedRegex(operation: string): RegExp {
 	return new RegExp(`${operation}%2E([a-zA-Z0-9._-]+)`, "i");
 }
 
+const QUERY_ID_VALUE_REGEXES = [
+	/queryId=([a-zA-Z0-9._-]+)/gi,
+	/queryId%3D([a-zA-Z0-9._-]+)/gi,
+	/queryId\\u003d([a-zA-Z0-9._-]+)/gi,
+	/"queryId"\s*:\s*"([a-zA-Z0-9._-]+)"/gi,
+];
+
+function extractQueryIdFromText(
+	text: string,
+	operations: string[],
+): { operation: string; queryId: string } | null {
+	for (const regex of QUERY_ID_VALUE_REGEXES) {
+		for (const match of text.matchAll(regex)) {
+			const candidate = match[1] ?? "";
+			if (!candidate) {
+				continue;
+			}
+			const operation = candidate.split(".")[0] ?? "";
+			if (operations.includes(operation)) {
+				return { operation, queryId: candidate };
+			}
+		}
+	}
+	return null;
+}
+
 async function fetchWebText(
 	client: LinkedInClient,
 	url: string,
@@ -380,6 +406,11 @@ async function discoverBundles(
 				`entrypoint contentType=${response.contentType} bytes=${response.text.length} url=${url}`,
 			);
 			const html = response.text;
+			const genericFromHtml = extractQueryIdFromText(html, operations);
+			if (genericFromHtml) {
+				debugQueryIds(`entrypoint direct_query_id=${genericFromHtml.queryId} url=${url}`);
+				return { bundles: [], directQueryId: genericFromHtml };
+			}
 			for (const operation of operations) {
 				const htmlDirect =
 					buildHtmlQueryIdRegex(operation).exec(html) ??
@@ -453,6 +484,10 @@ function extractQueryIdFromBundleText(
 	contents: string,
 	operations: string[],
 ): { operation: string; queryId: string } | null {
+	const generic = extractQueryIdFromText(contents, operations);
+	if (generic) {
+		return generic;
+	}
 	for (const operation of operations) {
 		const mapMatch = buildQueryIdMapRegex(operation).exec(contents);
 		if (mapMatch?.[1]) {
