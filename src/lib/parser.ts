@@ -385,7 +385,157 @@ export function parseInvitationsFromFlagshipRsc(payload: string): NormalizedInvi
 		seen.add(urn);
 	}
 
+	if (results.length > 0) {
+		return results;
+	}
+
+	const fallbackInvites = parseInvitationsFromFlagshipRscFallback(payload);
+	return fallbackInvites;
+}
+
+function parseInvitationsFromFlagshipRscFallback(payload: string): NormalizedInvitation[] {
+	const invitationRegex = /"componentKey":"(urn:li:invitation:[^"]+)"/g;
+	const results: NormalizedInvitation[] = [];
+	const seen = new Set<string>();
+
+	for (;;) {
+		const match = invitationRegex.exec(payload);
+		if (!match) {
+			break;
+		}
+		const urn = match[1] ?? "";
+		if (!urn || seen.has(urn)) {
+			continue;
+		}
+
+		const nextIndex = payload.indexOf('"componentKey":"urn:li:invitation:', match.index + 1);
+		const chunk = payload.slice(match.index, nextIndex === -1 ? payload.length : nextIndex);
+
+		const usernameMatch = chunk.match(/https:\/\/www\.linkedin\.com\/in\/([^/?"]+)/);
+		const firstNameMatch = chunk.match(/"firstName":"([^"]+)"/);
+		const lastNameMatch = chunk.match(/"lastName":"([^"]+)"/);
+		const profileIdMatch = chunk.match(/"profileId":"([^"]+)"/);
+		const invitationTypeMatch = chunk.match(/"invitationType":"([^"]+)"/);
+		const sharedSecretMatch = chunk.match(/"validationToken":"([^"]+)"/);
+
+		const messageMatch = chunk.match(/"message":"([^"]+)"/);
+		const headline = pickInviteHeadline(chunk);
+		const sharedConnections = parseSharedConnections(chunk);
+		const sentAt = parseInvitationTime(chunk);
+
+		const rawInvitation: Record<string, unknown> = {
+			entityUrn: urn,
+			sharedSecret: sharedSecretMatch?.[1] ?? "",
+			invitationType: invitationTypeMatch?.[1] ?? "",
+			sentTime: sentAt.getTime(),
+			sharedConnections: { count: sharedConnections },
+			genericInviter: {
+				miniProfile: {
+					publicIdentifier: usernameMatch?.[1] ?? "",
+					firstName: firstNameMatch?.[1] ?? "",
+					lastName: lastNameMatch?.[1] ?? "",
+					occupation: headline,
+					entityUrn: profileIdMatch?.[1]
+						? `urn:li:fsd_profile:${profileIdMatch[1]}`
+						: "",
+				},
+			},
+		};
+
+		if (messageMatch?.[1]) {
+			rawInvitation.message = messageMatch[1];
+		}
+
+		results.push(parseInvitation(rawInvitation));
+		seen.add(urn);
+	}
+
 	return results;
+}
+
+function pickInviteHeadline(chunk: string): string {
+	const candidates = Array.from(chunk.matchAll(/"children":\["([^"]+)"\]/g)).map(
+		(match) => match[1] ?? "",
+	);
+	for (const candidate of candidates) {
+		const text = candidate.trim();
+		if (text.length < 5 || text.length > 200) {
+			continue;
+		}
+		if (
+			text.includes("inviting you to connect") ||
+			text.includes("mutual connection") ||
+			text === "Yesterday" ||
+			text === "Today" ||
+			text.startsWith("Invitation") ||
+			text === "Message"
+		) {
+			continue;
+		}
+		return text;
+	}
+	return "";
+}
+
+function parseSharedConnections(chunk: string): number {
+	const otherMatch = chunk.match(/(\d+)\s+other mutual connection/);
+	if (otherMatch?.[1]) {
+		return Number(otherMatch[1]) + 1;
+	}
+	const mutualMatch = chunk.match(/(\d+)\s+mutual connections?/);
+	if (mutualMatch?.[1]) {
+		return Number(mutualMatch[1]);
+	}
+	return 0;
+}
+
+function parseInvitationTime(chunk: string): Date {
+	const candidates = Array.from(chunk.matchAll(/"children":\["([^"]+)"\]/g)).map(
+		(match) => match[1] ?? "",
+	);
+	for (const candidate of candidates) {
+		const parsed = parseRelativeTimeText(candidate.trim());
+		if (parsed) {
+			return parsed;
+		}
+	}
+	return new Date(0);
+}
+
+function parseRelativeTimeText(text: string): Date | null {
+	const now = new Date();
+	const lower = text.toLowerCase();
+	if (lower === "yesterday") {
+		return new Date(now.getTime() - 24 * 60 * 60 * 1000);
+	}
+	if (lower === "today") {
+		return now;
+	}
+	const match = lower.match(/(\d+)\s+(minute|minutes|hour|hours|day|days|week|weeks)\s+ago/);
+	if (!match) {
+		return null;
+	}
+	const value = Number(match[1] ?? 0);
+	const unit = match[2] ?? "";
+	if (!Number.isFinite(value) || value <= 0) {
+		return null;
+	}
+	switch (unit) {
+		case "minute":
+		case "minutes":
+			return new Date(now.getTime() - value * 60 * 1000);
+		case "hour":
+		case "hours":
+			return new Date(now.getTime() - value * 60 * 60 * 1000);
+		case "day":
+		case "days":
+			return new Date(now.getTime() - value * 24 * 60 * 60 * 1000);
+		case "week":
+		case "weeks":
+			return new Date(now.getTime() - value * 7 * 24 * 60 * 60 * 1000);
+		default:
+			return null;
+	}
 }
 
 /**

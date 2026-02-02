@@ -429,5 +429,27 @@ describe("parser", () => {
 			});
 			expect(result[0].message).toContain("developer marketing");
 		});
+
+		it("parses invitation data from new RSC payload format", () => {
+			const payload =
+				'["Pending",["$","div",null,{"componentKey":"urn:li:invitation:7423794056281047040","children":["$","p",null,{"children":["Shivam Gupta, premium, follows you and is inviting you to connect"]}],["$","p",null,{"children":["Founder & Growth Strategist @ Target2Links"]}],["$","p",null,{"children":["Fraser Marlow and 1 other mutual connection"]}],["$","p",null,{"children":["Yesterday"]}]}]]' +
+				'"firstName":"Shivam","lastName":"Gupta","profileId":"ACoAAD2AZDsBv8J1SRoe2Q0-eaH2lE3qA0SJDR8","validationToken":"JaE1DiqF","invitationType":"GenericInvitationType_CONNECTION","url":"https://www.linkedin.com/in/01shivamgupta/"';
+
+			const result = parseInvitationsFromFlagshipRsc(payload);
+
+			expect(result).toHaveLength(1);
+			expect(result[0]).toMatchObject({
+				invitationId: "7423794056281047040",
+				sharedSecret: "JaE1DiqF",
+				type: "GenericInvitationType_CONNECTION",
+				sharedConnections: 2,
+			});
+			expect(result[0].inviter).toMatchObject({
+				username: "01shivamgupta",
+				firstName: "Shivam",
+				lastName: "Gupta",
+				headline: "Founder & Growth Strategist @ Target2Links",
+			});
+		});
 	});
 });
