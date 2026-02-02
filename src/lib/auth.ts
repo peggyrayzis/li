@@ -57,7 +57,7 @@ async function extractChromeCookies(profileDir?: string): Promise<ChromeCookieRe
 	try {
 		const result = await getCookies({
 			url: LINKEDIN_URL,
-			browser: "chrome",
+			browsers: ["chrome"],
 			profile: profileDir,
 		});
 

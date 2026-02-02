@@ -227,9 +227,9 @@ describe("auth", () => {
 				warnings: [],
 			});
 
-			await expect(
-				resolveCredentials({ cookieSource: ["chrome"] }),
-			).rejects.toThrow(/LinkedIn credentials not found/);
+			await expect(resolveCredentials({ cookieSource: ["chrome"] })).rejects.toThrow(
+				/LinkedIn credentials not found/,
+			);
 		});
 
 		it("does not attempt Chrome extraction when cookieSource not specified", async () => {
