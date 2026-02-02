@@ -177,6 +177,51 @@ export function parseConnection(raw: Record<string, unknown>): NormalizedConnect
 }
 
 /**
+ * Parses connections from LinkedIn flagship-web RSC payloads.
+ * These payloads are not JSON and require regex extraction.
+ */
+export function parseConnectionsFromFlagshipRsc(payload: string): NormalizedConnection[] {
+	const connectionRegex = new RegExp(
+		String.raw`"url":"(https:\/\/www\.linkedin\.com\/in\/[^"]+)"[\s\S]{0,800}?"children":\["([^"]+)"\][\s\S]{0,800}?"children":\["([^"]+)"\]`,
+		"g",
+	);
+
+	const results: NormalizedConnection[] = [];
+	const seen = new Set<string>();
+
+	let match: RegExpExecArray | null;
+	while ((match = connectionRegex.exec(payload)) !== null) {
+		const rawUrl = match[1];
+		const name = match[2].trim();
+		const headline = match[3].trim();
+
+		const profileUrl = rawUrl.replace(/\/$/, "");
+		const usernameMatch = profileUrl.match(/\/in\/([^/?#]+)/);
+		const username = usernameMatch ? usernameMatch[1] : "";
+
+		if (!username || seen.has(username)) {
+			continue;
+		}
+
+		const nameParts = name.split(/\s+/);
+		const firstName = nameParts[0] ?? "";
+		const lastName = nameParts.slice(1).join(" ");
+
+		seen.add(username);
+		results.push({
+			urn: "",
+			username,
+			firstName,
+			lastName,
+			headline,
+			profileUrl,
+		});
+	}
+
+	return results;
+}
+
+/**
  * Parses a message event from conversation events array.
  *
  * @param raw - Raw message event from API

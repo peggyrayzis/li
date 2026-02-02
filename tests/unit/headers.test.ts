@@ -59,6 +59,7 @@ describe("headers", () => {
 				"Cookie",
 				"csrf-token",
 				"User-Agent",
+				"Accept",
 				"Accept-Language",
 				"X-Li-Lang",
 				"X-Restli-Protocol-Version",

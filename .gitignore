@@ -18,6 +18,7 @@ secrets.json
 # Cookie/session files
 cookies.txt
 session.json
+*.har
 
 # IDE
 .idea/

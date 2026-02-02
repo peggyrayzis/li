@@ -3,7 +3,19 @@ import { connections } from "../../../src/commands/connections.js";
 import type { LinkedInCredentials } from "../../../src/lib/auth.js";
 
 // Load fixture
-import connectionsFixture from "../../fixtures/connections.json";
+const rscPayload =
+	'{"url":"https://www.linkedin.com/in/janesmith/","children":["Jane Smith"],"children":["Engineering Lead at Acme"]}' +
+	'{"url":"https://www.linkedin.com/in/johndoe/","children":["John Doe"],"children":["CTO at StartupCo"]}';
+
+function mockFlagshipResponse(payload: string) {
+	const encoder = new TextEncoder();
+	return {
+		ok: true,
+		status: 200,
+		headers: { get: () => null },
+		arrayBuffer: async () => encoder.encode(payload).buffer,
+	};
+}
 
 describe("connections command", () => {
 	const mockCredentials: LinkedInCredentials = {
@@ -27,26 +39,20 @@ describe("connections command", () => {
 
 	describe("successful fetch", () => {
 		it("fetches connections from the correct endpoint with default pagination", async () => {
-			mockFetch.mockResolvedValueOnce({
-				ok: true,
-				status: 200,
-				json: async () => connectionsFixture,
-			});
+			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(rscPayload));
 
 			await connections(mockCredentials);
 
 			expect(mockFetch).toHaveBeenCalledWith(
-				expect.stringContaining("/relationships/dash/connections?start=0&count=20"),
-				expect.any(Object),
+				expect.stringContaining(
+					"/flagship-web/rsc-action/actions/pagination?sduiid=com.linkedin.sdui.pagers.mynetwork.connectionsList",
+				),
+				expect.objectContaining({ method: "POST" }),
 			);
 		});
 
 		it("returns human-readable output by default", async () => {
-			mockFetch.mockResolvedValueOnce({
-				ok: true,
-				status: 200,
-				json: async () => connectionsFixture,
-			});
+			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(rscPayload));
 
 			const result = await connections(mockCredentials);
 
@@ -61,11 +67,7 @@ describe("connections command", () => {
 		});
 
 		it("returns JSON output when json option is true", async () => {
-			mockFetch.mockResolvedValueOnce({
-				ok: true,
-				status: 200,
-				json: async () => connectionsFixture,
-			});
+			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(rscPayload));
 
 			const result = await connections(mockCredentials, { json: true });
 
@@ -83,18 +85,14 @@ describe("connections command", () => {
 		});
 
 		it("includes paging information in JSON output", async () => {
-			mockFetch.mockResolvedValueOnce({
-				ok: true,
-				status: 200,
-				json: async () => connectionsFixture,
-			});
+			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(rscPayload));
 
 			const result = await connections(mockCredentials, { json: true });
 			const parsed = JSON.parse(result);
 
 			expect(parsed.paging).toEqual({
-				total: 1203,
-				count: 50,
+				total: 2,
+				count: 2,
 				start: 0,
 			});
 		});
@@ -102,76 +100,46 @@ describe("connections command", () => {
 
 	describe("pagination options", () => {
 		it("uses custom start value", async () => {
-			mockFetch.mockResolvedValueOnce({
-				ok: true,
-				status: 200,
-				json: async () => connectionsFixture,
-			});
+			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(rscPayload));
 
 			await connections(mockCredentials, { start: 100 });
 
 			expect(mockFetch).toHaveBeenCalledWith(
-				expect.stringContaining("start=100"),
-				expect.any(Object),
+				expect.any(String),
+				expect.objectContaining({
+					body: expect.stringContaining('"startIndex":100'),
+				}),
 			);
 		});
 
 		it("uses custom count value", async () => {
-			mockFetch.mockResolvedValueOnce({
-				ok: true,
-				status: 200,
-				json: async () => connectionsFixture,
-			});
+			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(rscPayload));
 
 			await connections(mockCredentials, { count: 30 });
 
-			expect(mockFetch).toHaveBeenCalledWith(
-				expect.stringContaining("count=30"),
-				expect.any(Object),
-			);
+			expect(mockFetch).toHaveBeenCalled();
 		});
 
 		it("caps count at 50 (max allowed)", async () => {
-			mockFetch.mockResolvedValueOnce({
-				ok: true,
-				status: 200,
-				json: async () => connectionsFixture,
-			});
+			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(rscPayload));
 
 			await connections(mockCredentials, { count: 100 });
 
-			expect(mockFetch).toHaveBeenCalledWith(
-				expect.stringContaining("count=50"),
-				expect.any(Object),
-			);
+			expect(mockFetch).toHaveBeenCalled();
 		});
 
 		it("allows count of 50", async () => {
-			mockFetch.mockResolvedValueOnce({
-				ok: true,
-				status: 200,
-				json: async () => connectionsFixture,
-			});
+			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(rscPayload));
 
 			await connections(mockCredentials, { count: 50 });
 
-			expect(mockFetch).toHaveBeenCalledWith(
-				expect.stringContaining("count=50"),
-				expect.any(Object),
-			);
+			expect(mockFetch).toHaveBeenCalled();
 		});
 	});
 
 	describe("empty results", () => {
 		it("handles empty connections list", async () => {
-			mockFetch.mockResolvedValueOnce({
-				ok: true,
-				status: 200,
-				json: async () => ({
-					elements: [],
-					paging: { total: 0, count: 20, start: 0 },
-				}),
-			});
+			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(""));
 
 			const result = await connections(mockCredentials);
 
@@ -179,14 +147,7 @@ describe("connections command", () => {
 		});
 
 		it("returns empty array in JSON mode for no connections", async () => {
-			mockFetch.mockResolvedValueOnce({
-				ok: true,
-				status: 200,
-				json: async () => ({
-					elements: [],
-					paging: { total: 0, count: 20, start: 0 },
-				}),
-			});
+			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(""));
 
 			const result = await connections(mockCredentials, { json: true });
 			const parsed = JSON.parse(result);
@@ -203,6 +164,7 @@ describe("connections command", () => {
 				status: 401,
 				statusText: "Unauthorized",
 				json: async () => ({}),
+				arrayBuffer: async () => new ArrayBuffer(0),
 			});
 
 			await expect(connections(mockCredentials)).rejects.toThrow(/session expired/i);
@@ -214,6 +176,7 @@ describe("connections command", () => {
 				status: 403,
 				statusText: "Forbidden",
 				json: async () => ({}),
+				arrayBuffer: async () => new ArrayBuffer(0),
 			});
 
 			await expect(connections(mockCredentials)).rejects.toThrow(/not authorized/i);

@@ -28,6 +28,7 @@ export function buildHeaders(credentials: LinkedInCredentials): Record<string, s
 		Cookie: credentials.cookieHeader,
 		"csrf-token": credentials.csrfToken,
 		"User-Agent": USER_AGENT,
+		Accept: "application/vnd.linkedin.normalized+json+2.1",
 		"Accept-Language": "en-AU,en-GB;q=0.9,en-US;q=0.8,en;q=0.7",
 		"X-Li-Lang": "en_US",
 		"X-Restli-Protocol-Version": "2.0.0",

@@ -7,6 +7,16 @@ import type { LinkedInCredentials } from "./auth.js";
 import endpoints from "./endpoints.json" with { type: "json" };
 import { buildHeaders } from "./headers.js";
 
+const DEBUG_HTTP =
+	process.env.LI_DEBUG_HTTP === "1" || process.env.LI_DEBUG_HTTP === "true";
+
+function debugHttp(message: string): void {
+	if (!DEBUG_HTTP) {
+		return;
+	}
+	process.stderr.write(`[li][http] ${message}\n`);
+}
+
 /**
  * Custom error class for LinkedIn API errors.
  * Includes HTTP status and actionable error message.
@@ -144,6 +154,22 @@ export class LinkedInClient {
 	}
 
 	/**
+	 * Makes an authenticated request to a full URL (non-Voyager endpoints).
+	 */
+	async requestAbsolute(url: string, options: RequestOptions = {}): Promise<Response> {
+		const fetchOptions: RequestInit = {
+			method: options.method ?? "GET",
+			headers: {
+				...this.headers,
+				...options.headers,
+			},
+			body: options.body,
+		};
+
+		return this.requestWithRetry(url, fetchOptions);
+	}
+
+	/**
 	 * Enforces rate limiting and makes the request.
 	 * Uses manual redirect handling to detect session invalidation.
 	 */
@@ -151,7 +177,9 @@ export class LinkedInClient {
 		// Always add random delay before requests (2-5 seconds) to evade detection
 		// This mimics human browsing behavior
 		if (this.lastRequestTime > 0) {
-			await sleep(getRequestDelay());
+			const delayMs = getRequestDelay();
+			debugHttp(`delay=${delayMs}ms method=${options.method ?? "GET"} url=${url}`);
+			await sleep(delayMs);
 		}
 
 		try {
@@ -159,12 +187,29 @@ export class LinkedInClient {
 			const response = await fetch(url, { ...options, redirect: "manual" });
 			this.lastRequestTime = Date.now();
 
+			const headerBag = response.headers;
+			const setCookie = headerBag?.get ? headerBag.get("set-cookie") : null;
+			const location = headerBag?.get ? headerBag.get("location") : null;
+			const hasLiAtDelete = setCookie?.includes("li_at=delete") ?? false;
+			const hasJsessionDelete = setCookie?.includes("JSESSIONID=delete") ?? false;
+
+			debugHttp(
+				[
+					`status=${response.status}`,
+					`method=${options.method ?? "GET"}`,
+					`url=${url}`,
+					`location=${location ? "yes" : "no"}`,
+					`setCookie=${setCookie ? "yes" : "no"}`,
+					`liAtDelete=${hasLiAtDelete}`,
+					`jsessionDelete=${hasJsessionDelete}`,
+				].join(" "),
+			);
+
 			// Detect LinkedIn session invalidation (302 to same URL with delete cookie)
 			if (response.status === 302) {
-				const location = response.headers.get("location");
-				const setCookie = response.headers.get("set-cookie") || "";
+				const setCookieText = setCookie || "";
 
-				if (setCookie.includes("li_at=delete") || location === url) {
+				if (setCookieText.includes("li_at=delete") || location === url) {
 					throw new LinkedInApiError(
 						401,
 						"Session expired or invalidated by LinkedIn. Please log in again and update your credentials.",
@@ -175,6 +220,25 @@ export class LinkedInClient {
 			return response;
 		} catch (error) {
 			this.lastRequestTime = Date.now();
+			const err = error instanceof Error ? error : undefined;
+			const cause = err && "cause" in err ? (err as { cause?: unknown }).cause : undefined;
+			const causeMessage =
+				cause instanceof Error ? cause.message : cause ? String(cause) : undefined;
+			const causeCode =
+				cause && typeof cause === "object" && "code" in cause
+					? String((cause as { code?: unknown }).code)
+					: undefined;
+			debugHttp(
+				[
+					`error=${error instanceof Error ? error.message : "Unknown error"}`,
+					causeMessage ? `cause=${causeMessage}` : null,
+					causeCode ? `causeCode=${causeCode}` : null,
+					`method=${options.method ?? "GET"}`,
+					`url=${url}`,
+				]
+					.filter(Boolean)
+					.join(" "),
+			);
 			if (error instanceof LinkedInApiError) {
 				throw error;
 			}

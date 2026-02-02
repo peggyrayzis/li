@@ -19,6 +19,11 @@ This file tracks architectural and implementation decisions made during developm
 
 ## Decisions
 
+### 2026-02-02 Connections - Flagship Web Pagination API
+**Context**: REST endpoint `/relationships/dash/connections` returned 400 and the UI now loads connections via `flagship-web` SDUI pagination.
+**Decision**: Use `flagship-web/rsc-action/actions/pagination` with the `connectionsList` pager for the connections command, parsing the RSC payload to extract names, headlines, and profile URLs.
+**Consequences**: Connections now rely on flagship-web responses rather than Voyager REST; parsing is heuristic and may require updates if SDUI payloads change.
+
 ### 2026-02-01 Project Setup
 **Context**: Initial project scaffolding for v0.1 MVP
 **Decision**:
