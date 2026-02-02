@@ -14,20 +14,11 @@
 import pc from "picocolors";
 import type { LinkedInCredentials } from "../lib/auth.js";
 import { LinkedInClient } from "../lib/client.js";
-import { parseLinkedInUrl } from "../lib/url-parser.js";
+import { resolveRecipient } from "../lib/recipient.js";
 import { formatJson } from "../output/json.js";
 
 export interface SendOptions {
 	json?: boolean;
-}
-
-interface ProfileLookupResponse {
-	elements: Array<{
-		entityUrn: string;
-		publicIdentifier?: string;
-		firstName?: string;
-		lastName?: string;
-	}>;
 }
 
 interface ConversationLookupResponse {
@@ -111,59 +102,6 @@ export async function send(
 	}
 
 	return formatHumanOutput(result);
-}
-
-/**
- * Resolve a recipient identifier to a profile URN.
- */
-async function resolveRecipient(
-	client: LinkedInClient,
-	recipient: string,
-): Promise<{ username: string; urn: string }> {
-	// Parse the input to determine type
-	const parsed = parseLinkedInUrl(recipient);
-
-	let username: string;
-
-	if (parsed?.type === "profile") {
-		if (parsed.identifier.startsWith("urn:li:")) {
-			// It's a URN - we need to look up the username
-			const response = await client.request(
-				`/identity/dash/profiles?q=memberIdentity&memberIdentity=${encodeURIComponent(parsed.identifier)}`,
-				{ method: "GET" },
-			);
-			const data = (await response.json()) as ProfileLookupResponse;
-
-			if (!data.elements || data.elements.length === 0) {
-				throw new Error(`Profile not found for URN: ${parsed.identifier}`);
-			}
-
-			return {
-				username: data.elements[0].publicIdentifier ?? "",
-				urn: data.elements[0].entityUrn,
-			};
-		}
-		username = parsed.identifier;
-	} else {
-		// Treat as plain username
-		username = recipient.trim();
-	}
-
-	// Look up the profile URN by username
-	const response = await client.request(
-		`/identity/dash/profiles?q=memberIdentity&memberIdentity=${encodeURIComponent(username)}`,
-		{ method: "GET" },
-	);
-	const data = (await response.json()) as ProfileLookupResponse;
-
-	if (!data.elements || data.elements.length === 0) {
-		throw new Error(`Profile not found: ${username}`);
-	}
-
-	return {
-		username: data.elements[0].publicIdentifier ?? username,
-		urn: data.elements[0].entityUrn,
-	};
 }
 
 /**

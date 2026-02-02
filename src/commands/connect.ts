@@ -8,7 +8,7 @@
 import type { LinkedInCredentials } from "../lib/auth.js";
 import { LinkedInClient } from "../lib/client.js";
 import endpoints from "../lib/endpoints.json" with { type: "json" };
-import { parseLinkedInUrl } from "../lib/url-parser.js";
+import { resolveRecipient } from "../lib/recipient.js";
 import { formatJson } from "../output/json.js";
 
 export interface ConnectOptions {
@@ -21,30 +21,6 @@ export interface ConnectResult {
 	recipient: string;
 	recipientUrn: string;
 	message?: string;
-}
-
-/**
- * Resolve a username to a profile URN using the identity/dash/profiles endpoint.
- */
-async function resolveUsernameToUrn(
-	client: LinkedInClient,
-	username: string,
-): Promise<{ urn: string; username: string }> {
-	const path = endpoints.endpoints.profileByUrn.replace("{username}", username);
-	const response = await client.request(path);
-	const data = (await response.json()) as {
-		elements?: Array<{ entityUrn?: string; publicIdentifier?: string }>;
-	};
-
-	if (!data.elements || data.elements.length === 0) {
-		throw new Error(`Profile not found: ${username}`);
-	}
-
-	const profile = data.elements[0];
-	return {
-		urn: profile.entityUrn || "",
-		username: profile.publicIdentifier || username,
-	};
 }
 
 /**
@@ -65,27 +41,11 @@ export async function connect(
 	}
 
 	const client = new LinkedInClient(credentials);
-	const parsed = parseLinkedInUrl(identifier);
 
-	let recipientUrn: string;
-	let recipientUsername: string;
-
-	// Determine if we need to resolve the identifier
-	if (parsed?.type === "profile") {
-		// Check if it's already a URN
-		if (parsed.identifier.startsWith("urn:li:")) {
-			recipientUrn = parsed.identifier;
-			// Extract a readable identifier from the URN
-			recipientUsername = parsed.identifier;
-		} else {
-			// It's a username, resolve to URN
-			const resolved = await resolveUsernameToUrn(client, parsed.identifier);
-			recipientUrn = resolved.urn;
-			recipientUsername = resolved.username;
-		}
-	} else {
-		throw new Error(`Invalid input: cannot connect to ${identifier}`);
-	}
+	// Resolve the identifier to a profile URN using the shared utility
+	const resolved = await resolveRecipient(client, identifier);
+	const recipientUrn = resolved.urn;
+	const recipientUsername = resolved.username;
 
 	// Build the connection request payload
 	// Note: The LinkedIn API auto-fills the inviter based on the authenticated session

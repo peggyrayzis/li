@@ -148,8 +148,22 @@ describe("connect command", () => {
 	});
 
 	describe("with URN input", () => {
-		it("uses URN directly without lookup", async () => {
-			// Only need the connection request - no lookup needed
+		it("looks up profile by URN to get username", async () => {
+			// Mock profile lookup by URN
+			mockFetch.mockResolvedValueOnce({
+				ok: true,
+				status: 200,
+				json: async () => ({
+					elements: [
+						{
+							entityUrn: "urn:li:fsd_profile:ACoAABCD1234",
+							publicIdentifier: "janedoe",
+						},
+					],
+				}),
+			});
+
+			// Mock connection request
 			mockFetch.mockResolvedValueOnce({
 				ok: true,
 				status: 201,
@@ -157,12 +171,23 @@ describe("connect command", () => {
 			});
 
 			const resultPromise = connect(mockCredentials, "urn:li:fsd_profile:ACoAABCD1234");
-			await vi.advanceTimersByTimeAsync(500);
-			await resultPromise;
+			await vi.advanceTimersByTimeAsync(1000);
+			const result = await resultPromise;
 
-			// Should only call once (no profile lookup needed)
-			expect(mockFetch).toHaveBeenCalledTimes(1);
-			expect(mockFetch.mock.calls[0][0]).toContain("/growth/normInvitations");
+			// Should call twice: profile lookup + connection request
+			expect(mockFetch).toHaveBeenCalledTimes(2);
+
+			// First call: look up profile by URN
+			expect(mockFetch.mock.calls[0][0]).toContain("/identity/dash/profiles");
+			expect(mockFetch.mock.calls[0][0]).toContain(
+				encodeURIComponent("urn:li:fsd_profile:ACoAABCD1234"),
+			);
+
+			// Second call: POST connection request
+			expect(mockFetch.mock.calls[1][0]).toContain("/growth/normInvitations");
+
+			// Result should show the resolved username
+			expect(result).toContain("janedoe");
 		});
 	});
 
