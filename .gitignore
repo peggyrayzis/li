@@ -1,0 +1,32 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+
+# Secrets - NEVER commit these
+.env
+.env.*
+*.env
+.env.local
+.env.development
+.env.production
+credentials.json
+secrets.json
+*.pem
+*.key
+
+# Cookie/session files
+cookies.txt
+session.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test coverage
+coverage/
+
+# Build artifacts
+*.tsbuildinfo
