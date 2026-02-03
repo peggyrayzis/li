@@ -172,6 +172,7 @@ const DEBUG_QUERY_IDS_DUMP =
 const DEBUG_QUERY_IDS_DUMP_BUNDLE =
 	process.env.LI_DEBUG_QUERY_IDS_DUMP_BUNDLE === "1" ||
 	process.env.LI_DEBUG_QUERY_IDS_DUMP_BUNDLE === "true";
+const DEBUG_DUMP = process.env.LI_DEBUG_DUMP === "1" || process.env.LI_DEBUG_DUMP === "true";
 let dumpedBundle = false;
 
 function debugQueryIds(message: string): void {
@@ -413,7 +414,7 @@ async function discoverBundles(
 				`entrypoint contentType=${response.contentType} bytes=${response.text.length} url=${url}`,
 			);
 			const html = response.text;
-			if (DEBUG_QUERY_IDS_DUMP) {
+			if (DEBUG_QUERY_IDS_DUMP || DEBUG_DUMP) {
 				try {
 					writeFileSync("/tmp/li-messaging.html", html, "utf8");
 				} catch {
@@ -466,7 +467,7 @@ async function discoverBundles(
 				}
 			}
 			const extracted = extractBundleUrlsFromHtml(response.text);
-			if (DEBUG_QUERY_IDS_DUMP && extracted.length > 0) {
+			if ((DEBUG_QUERY_IDS_DUMP || DEBUG_DUMP) && extracted.length > 0) {
 				try {
 					writeFileSync("/tmp/li-messaging-bundles.txt", extracted.join("\n"), "utf8");
 				} catch {
@@ -498,7 +499,7 @@ async function fetchBundleText(client: LinkedInClient, url: string): Promise<str
 		throw new Error(`Failed to fetch bundle ${url}`);
 	}
 	debugQueryIds(`bundle ok url=${url}`);
-	if (DEBUG_QUERY_IDS_DUMP_BUNDLE && !dumpedBundle) {
+	if ((DEBUG_QUERY_IDS_DUMP_BUNDLE || DEBUG_DUMP) && !dumpedBundle) {
 		try {
 			writeFileSync("/tmp/li-messaging-bundle.js", response.text, "utf8");
 			dumpedBundle = true;
@@ -548,7 +549,7 @@ async function fetchQueryIdsFromSettings(
 			},
 		);
 		const text = await response.text();
-		if (DEBUG_QUERY_IDS_DUMP) {
+		if (DEBUG_QUERY_IDS_DUMP || DEBUG_DUMP) {
 			try {
 				writeFileSync("/tmp/li-messaging-settings.json", text, "utf8");
 			} catch {

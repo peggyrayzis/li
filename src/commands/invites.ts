@@ -43,6 +43,7 @@ const FLAGSHIP_TRACK =
 	'{"clientVersion":"0.2.3802","mpVersion":"0.2.3802","osName":"web","timezoneOffset":-5,"timezone":"America/New_York","deviceFormFactor":"DESKTOP","mpName":"web","displayDensity":2,"displayWidth":3024,"displayHeight":1964}';
 const DEBUG_INVITES =
 	process.env.LI_DEBUG_INVITES === "1" || process.env.LI_DEBUG_INVITES === "true";
+const DEBUG_DUMP = process.env.LI_DEBUG_DUMP === "1" || process.env.LI_DEBUG_DUMP === "true";
 
 /**
  * List pending connection invitations.
@@ -75,7 +76,7 @@ export async function listInvites(
 
 	const buffer = await response.arrayBuffer();
 	const payload = new TextDecoder("utf-8").decode(buffer);
-	if (DEBUG_INVITES) {
+	if (DEBUG_INVITES || DEBUG_DUMP) {
 		const preview = payload.slice(0, 2000);
 		const dumpPath = "/tmp/li-invites-payload.txt";
 		try {
