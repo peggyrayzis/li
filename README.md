@@ -70,14 +70,6 @@ li connections --start 20       # Pagination offset
 li connections --json           # Output as JSON
 ```
 
-### Connection Requests (v0.2)
-
-```bash
-li connect peggyrayzis                              # Send connection request
-li connect peggyrayzis --note "Great talk!"         # Include a note (max 300 chars)
-li connect --json peggyrayzis
-```
-
 ### Invitations
 
 ```bash
@@ -99,11 +91,13 @@ li messages read CONV123        # Read messages in a conversation
 li messages read CONV123 -n 50  # Show 50 messages
 ```
 
-### Send Messages (v0.2)
+### Write Commands (v0.2)
 
 ```bash
 li send peggyrayzis "Hey, quick question about your talk"
 li send peggyrayzis "Following up!" --json
+li connect peggyrayzis
+li connect peggyrayzis --note "Great talk!"
 ```
 
 ## Global Options
@@ -118,6 +112,23 @@ All commands support:
 | `--cookie-source <src>` | Cookie source: `chrome` (explicit) or `auto` (default) |
 | `-h, --help` | Show help |
 | `-V, --version` | Show version |
+
+## Debugging
+
+```bash
+# Basic request logging
+LI_DEBUG_HTTP=1
+
+# Messaging troubleshooting
+LI_DEBUG_MESSAGES=1
+LI_DEBUG_MESSAGES_RESPONSE=1
+
+# Query ID discovery troubleshooting
+LI_DEBUG_QUERY_IDS=1
+
+# Dump HTML/bundles/settings payloads to /tmp (advanced)
+LI_DEBUG_DUMP=1
+```
 
 ## Output Modes
 
@@ -170,12 +181,12 @@ li connections --all --json | \
   done
 ```
 
-### Process pending invites
+### Process pending invites (v0.2)
 
 ```bash
-li invites --json | \
+li invites --json --include-secrets | \
   jq -r '.invitations[] | select(.sharedConnections > 3) | .invitationId' | \
-  xargs -I{} li invites accept {}   # v0.2
+  xargs -I{} li invites accept {}
 ```
 
 ### Check for unread messages

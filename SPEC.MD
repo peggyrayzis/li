@@ -57,21 +57,22 @@ If this returns 401/403, emit a clear error:
   Or set LINKEDIN_LI_AT and LINKEDIN_JSESSIONID env vars.
 
 Endpoint Stability Tiers
-LinkedIn's Voyager API endpoints fall into two stability categories. This distinction drives our release plan.
-Tier 1 — Stable REST-li (v0.1)
-These use standard REST-li protocol with predictable URLs. No rotating IDs, no GraphQL. They break only when LinkedIn restructures the endpoint entirely (rare).
-EndpointUsed By/mewhoami/identity/profiles/{slug}/networkinfowhoami (follower/connection counts)/identity/profiles/{slug}/profileViewprofile/identity/dash/profilesusername → URN resolution/relationships/dash/connectionsconnections (paginated list)/growth/normInvitationsconnect (send request)/relationships/invitationViewsinvites (list pending)/relationships/invitations/{id}invites --accept/messaging/conversationsmessages (create)/messaging/conversations/{id}/eventsmessages (read/send)
-Messaging list exception (v0.1): list conversations uses GraphQL with a rotating queryId (see below).
-Tier 2 — GraphQL with Rotating queryId (v0.2+)
+LinkedIn's APIs fall into three stability buckets that drive the release plan.
+Tier 1 — Stable REST-li (v0.1 read-only)
+Standard REST-li protocol with predictable URLs.
+EndpointUsed By/me whoami/identity/dash/profiles?q=memberIdentity&memberIdentity={username}profile lookup/messaging/conversations/{id}/eventsread messages
+Tier 2 — Flagship SDUI/RSC (v0.1 read-only)
+HTML/RSC pagination endpoints that require regex parsing but are currently stable.
+EndpointUsed Byflagship-web/rsc-action/actions/pagination?sduiid=com.linkedin.sdui.pagers.mynetwork.connectionsListconnections list/flagship-web/rsc-action/actions/pagination?sduiid=com.linkedin.sdui.pagers.mynetwork.invitationsListinvites list
+Tier 3 — GraphQL with Rotating queryId (v0.1 messaging list, v0.2+)
 These hit /voyager/api/graphql and require a queryId parameter that rotates on LinkedIn redeployments. When the ID rotates, the endpoint returns 400 until you discover the new ID.
-EndpointUsed ByqueryId PatternGraphQL followersfollowers (list)voyagerIdentityDashFollowers.<hash>GraphQL followingfollowing (list)voyagerIdentityDashFollowing.<hash>GraphQL search clusterssearch (some modes)voyagerSearchDashClusters.<hash>
+EndpointUsed ByqueryId Patternmessages (list)queryId=<rotating>/voyagerMessagingGraphQL/graphql?queryId=...
 queryId maintenance strategy (v0.1 messaging list + v0.2):
 
 Ship known-good queryIds in src/lib/endpoints.json
-On 400/404, fetch linkedin.com's webpack bundles and regex for current IDs (~50 lines, 2-3s penalty)
+On 400/404, fetch linkedin.com's HTML/bundles and regex for current IDs
 Cache discovered IDs locally at ~/.config/li/queryids.json
-li query-ids command for manual refresh
-Fallback: degrade to count-only mode (counts come from stable /networkinfo)
+li query-ids command for manual refresh (auto-discovery)
 
 
 CLI Commands
@@ -96,6 +97,9 @@ li query-ids
 li query-ids --refresh --auto
 li query-ids --refresh --har ~/Downloads/www.linkedin.com.har
 
+Debug flags:
+FlagDescriptionLI_DEBUG_HTTPLog request status + URLsLI_DEBUG_MESSAGESLog messaging queryId + variablesLI_DEBUG_MESSAGES_RESPONSELog response previews (may include PII)LI_DEBUG_QUERY_IDSLog queryId discovery progressLI_DEBUG_DUMPDump HTML/bundles/settings payloads to /tmp (advanced)
+
 Connections & Network ⭐ Priority
 Connections list uses flagship RSC pagination (no GraphQL, no queryId rotation).
 bash# Connection list
@@ -104,9 +108,7 @@ li connections -n 150                    # Paginate to return more than 50
 li connections --all                     # Full list (paginated until exhausted)
 li connections --json                    # Connection data as JSON
 
-# Connection actions (stable: /growth/normInvitations)
-li connect <username>                    # Send connection request
-li connect <username> --note "Loved your post on devtools marketing"
+# Invitations (read-only)
 li invites                               # Pending connection invitations
 li invites --json --include-secrets      # Include invitation IDs/secrets (unsafe, v0.2)
 
@@ -118,8 +120,6 @@ Flagship RSC pagination returns up to 50 connections per request and does not ex
 
 500 connections = ~10 requests
 30K connections (LinkedIn max) = ~600 requests
---all warns before paginating if total > 500
-
 Network flags:
 FlagDescription-nNumber of results (default: 20)--allPaginate through all results (until exhausted)--confirmRequired for bulk operations like --accept-all
 What's NOT in v0.1 (deferred to v0.2):
@@ -136,13 +136,13 @@ li following — people you follow list (GraphQL queryId required)
 li follow <username> / li unfollow <username> — follow without connecting (GraphQL)
 li disconnect <username> — remove a connection
 
-Follower/connection counts are available in v0.1 via li whoami (uses stable /networkinfo endpoint). Only the lists for followers/following need GraphQL.
+Follower/connection counts are available in v0.1 via li whoami. Exact connection counts may be unavailable; display "500+" when needed.
 Agent workflow — network management:
 bash# Agent checks current counts
 li whoami --json  # → {"name": "...", "followers": 4821, "connectionsDisplay": "500+"}
 
 # Agent processes pending invites (v0.2)
-li invites --json --include-secrets | jq '.[] | select(.sharedConnections > 3) | .id' | \
+li invites --json --include-secrets | jq '.[] | select(.sharedConnections > 3) | .invitationId' | \
   xargs -I{} li invites --accept {}
 
 # Agent filters connections for outreach targets
@@ -242,16 +242,9 @@ X-Li-Lang: en_US
 X-Li-Track: {"clientVersion":"1.13.8201","mpVersion":"1.13.8201","osName":"web","timezoneOffset":-8,"timezone":"America/Los_Angeles","deviceFormFactor":"DESKTOP","mpName":"voyager-web"}
 X-Restli-Protocol-Version: 2.0.0
 Accept: application/vnd.linkedin.normalized+json+2.1
-Endpoint Reference — v0.1 (Stable REST-li, plus one GraphQL exception)
+Endpoint Reference — v0.1 (Read-only)
 Messaging Endpoints
-CommandMethodEndpointNotesmessages (list)GET/voyagerMessagingGraphQL/graphql?queryId=messengerConversations.<hash>&variables=...GraphQL queryId rotates; v0.1 fetches the first page only.messages (thread)GET/messaging/conversations/{conversationId}/eventsMessage events in a conversation. Paginate with createdBefore.send (existing)POST/messaging/conversations/{conversationId}/eventsBody: { "eventCreate": { "value": { "com.linkedin.voyager.messaging.create.MessageCreate": { "body": "text", "attachments": [] } } } }send (new)POST/messaging/conversationsBody includes recipients array of profile URNs + message. Creates conversation + sends first message.messages --seenPOST/messaging/conversations/{conversationId}PATCH: { "patch": { "$set": { "read": true } } }messages --unreadGET/messaging/conversations?filters=List(UNREAD)Filters to unread only.
-Messaging resolution flow:
-When a user runs li send <username> "Hello":
-
-Resolve <username> to profile URN via /identity/dash/profiles?q=memberIdentity&memberIdentity=<username>
-Check for existing conversation via /messaging/conversations?q=participants&recipients=List(<profileUrn>)
-If conversation exists → POST to /messaging/conversations/{id}/events
-If no conversation → POST to /messaging/conversations with recipients array
+CommandMethodEndpointNotesmessages (list)GET/voyagerMessagingGraphQL/graphql?queryId=<hash>&variables=...GraphQL queryId rotates; auto-discovered from HTML/bundles; response key may vary.messages (thread)GET/messaging/conversations/{conversationId}/eventsMessage events in a conversation.
 
 Message response structure:
 json{
@@ -271,27 +264,7 @@ json{
   }]
 }
 Connection & Network Endpoints
-CommandMethodEndpointNotesconnectionsGET/relationships/dash/connections?start={n}&count={n}Paginated. Returns miniProfile per connection. total count is not consistently exposed.whoami (counts)GET/identity/profiles/{slug}/networkinfoDeprecated/410; avoid. Use followerCount via GraphQL and display "500+" for connections until a stable total source is found.profileGET/identity/profiles/{slug}/profileViewFull profile including network stats.connectPOST/growth/normInvitationsBody: { "inviteeProfileUrn": "urn:li:fsd_profile:...", "message": "optional note" }invites (list)GET/relationships/invitationViewsPending received invitations.invites --acceptPOST/relationships/invitations/{inviteId}Accept with action=accept.
-Connections pagination response:
-json{
-  "elements": [
-    {
-      "to": "urn:li:person:ABC123",
-      "to~": {
-        "firstName": { "localized": { "en_US": "Jane" } },
-        "lastName": { "localized": { "en_US": "Smith" } },
-        "publicIdentifier": "janesmith",
-        "headline": { "localized": { "en_US": "Engineering Lead at Acme" } }
-      }
-    }
-  ],
-  "paging": {
-    "total": 1203,
-    "count": 50,
-    "start": 0
-  }
-}
-Pagination: increment start by count until start >= paging.total.
+CommandMethodEndpointNotesconnectionsPOSTflagship-web/rsc-action/actions/pagination?sduiid=com.linkedin.sdui.pagers.mynetwork.connectionsListRSC pagination; max 50 per request; total not exposed.whoami (counts)GET/meDisplay "500+" when exact count unavailable.profileGET/identity/dash/profiles?q=memberIdentity&memberIdentity={username}Resolve profile URN + fetch dash profile.invitations (list)POSTflagship-web/rsc-action/actions/pagination?sduiid=com.linkedin.sdui.pagers.mynetwork.invitationsListRSC pagination for pending invites.
 Other v0.1 Endpoints
 CommandMethodEndpointwhoamiGET/me + /identity/profiles/{slug}/networkinfo
 Endpoint Reference — v0.2+ (GraphQL)
@@ -423,20 +396,15 @@ const profile = await client.getProfile('peggyrayzis');
 
 Agent Integration Patterns
 Claude Code / Claude Desktop
-bash# ⭐ Agent-powered outreach: filter connections, DM matches
+bash# ⭐ Agent-powered outreach (v0.2): filter connections, DM matches
 li connections --all --json | jq -r '.[] | select(.headline | test("CTO"; "i")) | .username' | while read user; do
   profile=$(li profile "$user" --json)
   li send "$user" "$(echo $profile | generate-dm.sh)"
   sleep 30
 done
 
-# ⭐ Agent monitors inbox and drafts replies
-li messages --unread --json | jq -c '.[]' | while read convo; do
-  echo "$convo" | jq '{from: .participant, message: .lastMessage}'
-done
-
-# ⭐ Agent processes connection requests
-li invites --json | jq -c '.[] | select(.sharedConnections > 2)' | while read invite; do
+# ⭐ Agent processes connection requests (v0.2)
+li invites --json --include-secrets | jq -c '.[] | select(.sharedConnections > 2)' | while read invite; do
   li invites --accept $(echo $invite | jq -r '.id')
 done
 
@@ -456,7 +424,7 @@ json{
     }
   }
 }
-Tools exposed: linkedin_send_message, linkedin_get_messages, linkedin_get_connections, linkedin_connect, linkedin_get_invites, linkedin_accept_invite, linkedin_profile, linkedin_whoami.
+Tools exposed: linkedin_get_messages, linkedin_get_connections, linkedin_get_invites, linkedin_profile, linkedin_whoami. (Write tools deferred to v0.2)
 
 Release Plan
 v0.1 — Messaging + Connections MVP (2–3 weeks)
