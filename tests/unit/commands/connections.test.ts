@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { connections } from "../../../src/commands/connections.js";
 import type { LinkedInCredentials } from "../../../src/lib/auth.js";
+import { resolveRecipient } from "../../../src/lib/recipient.js";
+import { buildCookieHeader } from "../../helpers/cookies.js";
+
+vi.mock("../../../src/lib/recipient.js", () => ({
+	resolveRecipient: vi.fn(),
+}));
 
 function buildRscPayload(startIndex: number, count: number): string {
 	const entries: string[] = [];
@@ -27,7 +33,7 @@ describe("connections command", () => {
 	const mockCredentials: LinkedInCredentials = {
 		liAt: "AQE-test-li-at-token",
 		jsessionId: "ajax:1234567890123456789",
-		cookieHeader: 'li_at=AQE-test-li-at-token; JSESSIONID="ajax:1234567890123456789"',
+		cookieHeader: buildCookieHeader("AQE-test-li-at-token","ajax:1234567890123456789"),
 		csrfToken: "ajax:1234567890123456789",
 		source: "env",
 	};
@@ -37,10 +43,15 @@ describe("connections command", () => {
 	beforeEach(() => {
 		mockFetch = vi.fn();
 		vi.stubGlobal("fetch", mockFetch);
+		vi.mocked(resolveRecipient).mockResolvedValue({
+			username: "target",
+			urn: "urn:li:fsd_profile:ACoTARGET",
+		});
 	});
 
 	afterEach(() => {
 		vi.unstubAllGlobals();
+		vi.clearAllMocks();
 	});
 
 	describe("successful fetch", () => {
@@ -109,6 +120,32 @@ describe("connections command", () => {
 				count: 2,
 				start: 0,
 			});
+		});
+
+		it("includes connectionOf filter when listing another profile's connections", async () => {
+			mockFetch
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 2)))
+				.mockResolvedValue(mockFlagshipResponse(""));
+
+			await connections(mockCredentials, { of: "peggyrayzis" });
+
+			expect(mockFetch).toHaveBeenCalledWith(
+				expect.stringContaining("/flagship-web/search/results/people/?origin=FACETED_SEARCH"),
+				expect.objectContaining({
+					body: expect.stringContaining('"filterItemSingle":"ACoTARGET"'),
+				}),
+			);
+		});
+
+		it("returns paging.total as null for connectionOf JSON output", async () => {
+			mockFetch
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 2)))
+				.mockResolvedValue(mockFlagshipResponse(""));
+
+			const result = await connections(mockCredentials, { json: true, of: "peggyrayzis" });
+			const parsed = JSON.parse(result);
+
+			expect(parsed.paging.total).toBeNull();
 		});
 	});
 
@@ -179,6 +216,45 @@ describe("connections command", () => {
 			expect(parsed.paging).toEqual({
 				total: null,
 				count: 4,
+				start: 0,
+			});
+			expect(mockFetch).toHaveBeenCalledTimes(3);
+		});
+
+		it("paginates connectionOf searches when count exceeds 50", async () => {
+			mockFetch
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 10)))
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(10, 10)))
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(20, 10)))
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(30, 10)))
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(40, 10)))
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(50, 10)));
+
+			await connections(mockCredentials, { count: 55, of: "peggyrayzis" });
+
+			expect(mockFetch).toHaveBeenCalledTimes(6);
+			expect(mockFetch).toHaveBeenNthCalledWith(
+				2,
+				expect.any(String),
+				expect.objectContaining({
+					body: expect.stringContaining("SearchResultsauto-binding-2"),
+				}),
+			);
+		});
+
+		it("fetches all pages for connectionOf searches when all is true", async () => {
+			mockFetch
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 10)))
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(10, 10)))
+				.mockResolvedValueOnce(mockFlagshipResponse(""));
+
+			const result = await connections(mockCredentials, { json: true, all: true, of: "peggyrayzis" });
+			const parsed = JSON.parse(result);
+
+			expect(parsed.connections).toHaveLength(20);
+			expect(parsed.paging).toEqual({
+				total: null,
+				count: 20,
 				start: 0,
 			});
 			expect(mockFetch).toHaveBeenCalledTimes(3);

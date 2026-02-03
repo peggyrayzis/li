@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { LinkedInCredentials } from "../../src/lib/auth.js";
 import { buildHeaders } from "../../src/lib/headers.js";
+import { buildCookieHeader } from "../helpers/cookies.js";
 
 describe("headers", () => {
 	const mockCredentials: LinkedInCredentials = {
 		liAt: "AQE-test-li-at-token",
 		jsessionId: "ajax:1234567890123456789",
-		cookieHeader: 'li_at=AQE-test-li-at-token; JSESSIONID="ajax:1234567890123456789"',
+		cookieHeader: buildCookieHeader("AQE-test-li-at-token","ajax:1234567890123456789"),
 		csrfToken: "ajax:1234567890123456789",
 		source: "env",
 	};
@@ -75,7 +76,7 @@ describe("headers", () => {
 			const differentCreds: LinkedInCredentials = {
 				liAt: "different-li-at",
 				jsessionId: "different-jsession",
-				cookieHeader: 'li_at=different-li-at; JSESSIONID="different-jsession"',
+				cookieHeader: buildCookieHeader("different-li-at","different-jsession"),
 				csrfToken: "different-jsession",
 				source: "cli",
 			};

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // Import the invites command
 import { acceptInvite, type InvitesOptions, listInvites } from "../../../src/commands/invites.js";
 import type { LinkedInCredentials } from "../../../src/lib/auth.js";
+import { buildCookieHeader } from "../../helpers/cookies.js";
 
 // Load fixture
 const rscPayload =
@@ -22,7 +23,7 @@ describe("invites command", () => {
 	const mockCredentials: LinkedInCredentials = {
 		liAt: "AQE-test-li-at-token",
 		jsessionId: "ajax:1234567890123456789",
-		cookieHeader: 'li_at=AQE-test-li-at-token; JSESSIONID="ajax:1234567890123456789"',
+		cookieHeader: buildCookieHeader("AQE-test-li-at-token","ajax:1234567890123456789"),
 		csrfToken: "ajax:1234567890123456789",
 		source: "env",
 	};

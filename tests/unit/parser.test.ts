@@ -7,6 +7,8 @@ import {
 	type NormalizedMessage,
 	type NormalizedProfile,
 	parseConnection,
+	parseConnectionsFromSearchHtml,
+	parseConnectionsFromSearchStream,
 	parseConversation,
 	parseInvitation,
 	parseInvitationsFromFlagshipRsc,
@@ -193,6 +195,99 @@ describe("parser", () => {
 			expect(result).toHaveProperty("headline");
 			expect(result).toHaveProperty("urn");
 			expect(result).toHaveProperty("profileUrl");
+		});
+	});
+
+	describe("parseConnectionsFromSearchHtml", () => {
+		it("extracts miniProfile connections from HTML payload", () => {
+			const payload =
+				'<html><body>{"miniProfile":{"publicIdentifier":"janedoe","firstName":"Jane","lastName":"Doe","occupation":"Engineer"}}' +
+				'{"miniProfile":{"publicIdentifier":"johndoe","firstName":"John","lastName":"Doe","occupation":"CTO"}}</body></html>';
+
+			const result = parseConnectionsFromSearchHtml(payload);
+
+			expect(result).toHaveLength(2);
+			expect(result[0]).toMatchObject({
+				username: "janedoe",
+				firstName: "Jane",
+				lastName: "Doe",
+				headline: "Engineer",
+			});
+		});
+	});
+
+	describe("parseConnectionsFromSearchStream", () => {
+		it("extracts connections from people-search-result blocks", () => {
+			const payload = `"viewName":"people-search-result","children":["$","p",null,{"children":[["$","$L61","text-attr-0",{"children":["Minna Song"]}]]}],
+"url":"https://www.linkedin.com/in/minna-song/",
+"children":["CEO @ EliseAI - We're hiring"]`;
+
+			const result = parseConnectionsFromSearchStream(payload);
+
+			expect(result).toHaveLength(1);
+			expect(result[0]).toMatchObject({
+				username: "minna-song",
+				firstName: "Minna",
+				lastName: "Song",
+				headline: "CEO @ EliseAI - We're hiring",
+			});
+		});
+
+		it("handles escaped quotes in names", () => {
+			const payload = `"viewName":"people-search-result","children":["$","p",null,{"children":[["$","$L61","text-attr-0",{"children":["Dan \\\"POP\\\" P."]}]]}],
+"url":"https://www.linkedin.com/in/danpapandrea/",
+"children":["Founder and Builder"]`;
+
+			const result = parseConnectionsFromSearchStream(payload);
+
+			expect(result).toHaveLength(1);
+			expect(result[0]).toMatchObject({
+				username: "danpapandrea",
+				firstName: "Dan",
+				lastName: '"POP" P.',
+				headline: "Founder and Builder",
+			});
+		});
+
+		it("extracts profileId as urn when available", () => {
+			const payload = `"viewName":"people-search-result",
+"profileId":"ACoAAA123",
+"url":"https://www.linkedin.com/in/jane-doe/",
+"children":[["$","$L61","text-attr-0",{"children":["Jane Doe"]}]],
+"children":[["$","$L61","text-attr-0",{"children":["Engineer"]}]]`;
+
+			const result = parseConnectionsFromSearchStream(payload);
+
+			expect(result).toHaveLength(1);
+			expect(result[0]).toMatchObject({
+				username: "jane-doe",
+				firstName: "Jane",
+				lastName: "Doe",
+				headline: "Engineer",
+				urn: "urn:li:fsd_profile:ACoAAA123",
+			});
+		});
+
+		it("prefers headline text before social proof blocks", () => {
+			const payload = `"viewName":"people-search-result",
+"children":[["$","$L61","text-attr-0",{"children":["Jamie Lee"]}]],
+"children":[["$","$L61","text-attr-0",{"children":[" • 2nd"]}]],
+"children":[["$","$L61","text-attr-0",{"children":["Founder at Example"]}]],
+"children":[["$","$L61","text-attr-0",{"children":["New York, New York, United States"]}]],
+"viewName":"search-result-social-proof-insight",
+"children":[["$","$L61","text-attr-0",{"children":["Morgan Smith"]}]],
+"url":"https://www.linkedin.com/in/jamie-lee/"`;
+
+			const result = parseConnectionsFromSearchStream(payload);
+
+			expect(result).toHaveLength(1);
+			expect(result[0]).toMatchObject({
+				username: "jamie-lee",
+				firstName: "Jamie",
+				lastName: "Lee",
+				headline: "Founder at Example",
+				connectionDegree: "2nd",
+			});
 		});
 	});
 

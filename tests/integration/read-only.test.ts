@@ -96,6 +96,23 @@ describe.skipIf(!shouldRunIntegration)("read-only integration", () => {
 			expect(parsed.connections.length).toBeLessThanOrEqual(3);
 			expect(parsed.paging.count).toBeLessThanOrEqual(3);
 		});
+
+		it("supports --of identifier for connectionOf searches", async () => {
+			const profileUrl = `https://www.linkedin.com/in/${ownUsername}`;
+			const result = await connections(credentials, {
+				json: true,
+				count: 3,
+				of: profileUrl,
+			});
+			const parsed = JSON.parse(result);
+
+			expect(parsed).toHaveProperty("connections");
+			expect(Array.isArray(parsed.connections)).toBe(true);
+			expect(parsed).toHaveProperty("paging");
+			expect(parsed.paging.total).toBeNull();
+			expect(parsed.paging.count).toBeLessThanOrEqual(3);
+			expect(parsed.paging.start).toBe(0);
+		});
 	});
 
 	describe("messages command", () => {

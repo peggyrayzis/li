@@ -12,12 +12,13 @@ vi.mock("../../../src/lib/client.js", () => ({
 }));
 
 import { send } from "../../../src/commands/send.js";
+import { buildCookieHeader } from "../../helpers/cookies.js";
 
 describe("send command", () => {
 	const mockCredentials: LinkedInCredentials = {
 		liAt: "AQE-test-li-at-token",
 		jsessionId: "ajax:1234567890123456789",
-		cookieHeader: 'li_at=AQE-test-li-at-token; JSESSIONID="ajax:1234567890123456789"',
+		cookieHeader: buildCookieHeader("AQE-test-li-at-token","ajax:1234567890123456789"),
 		csrfToken: "ajax:1234567890123456789",
 		source: "env",
 	};

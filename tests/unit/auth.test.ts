@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type LinkedInCredentials, resolveCredentials } from "../../src/lib/auth.js";
+import {
+	JSID_COOKIE_NAME,
+	LI_AT_COOKIE_NAME,
+	LINKEDIN_JSID_ENV,
+	buildCookieHeader,
+} from "../helpers/cookies.js";
 
 vi.mock("@steipete/sweet-cookie", () => ({
 	getCookies: vi.fn(),
@@ -12,7 +18,7 @@ describe("auth", () => {
 		vi.resetModules();
 		process.env = { ...originalEnv };
 		delete process.env.LINKEDIN_LI_AT;
-		delete process.env.LINKEDIN_JSESSIONID;
+		delete process.env[LINKEDIN_JSID_ENV];
 	});
 
 	afterEach(() => {
@@ -39,12 +45,12 @@ describe("auth", () => {
 					jsessionId: "my-jsession",
 				});
 
-				expect(result.credentials.cookieHeader).toBe('li_at=my-li-at; JSESSIONID="my-jsession"');
+				expect(result.credentials.cookieHeader).toBe(buildCookieHeader("my-li-at","my-jsession"));
 			});
 
 			it("CLI flags override environment variables", async () => {
 				process.env.LINKEDIN_LI_AT = "env-li-at";
-				process.env.LINKEDIN_JSESSIONID = "env-jsession";
+				process.env[LINKEDIN_JSID_ENV] = "env-jsession";
 
 				const result = await resolveCredentials({
 					liAt: "cli-li-at",
@@ -60,7 +66,7 @@ describe("auth", () => {
 		describe("from environment variables", () => {
 			it("resolves credentials from env vars when no CLI flags", async () => {
 				process.env.LINKEDIN_LI_AT = "env-li-at-token";
-				process.env.LINKEDIN_JSESSIONID = "env-jsession-token";
+				process.env[LINKEDIN_JSID_ENV] = "env-jsession-token";
 
 				const result = await resolveCredentials({});
 
@@ -71,16 +77,16 @@ describe("auth", () => {
 
 			it("builds correct cookie header from env vars", async () => {
 				process.env.LINKEDIN_LI_AT = "env-li-at";
-				process.env.LINKEDIN_JSESSIONID = "env-jsession";
+				process.env[LINKEDIN_JSID_ENV] = "env-jsession";
 
 				const result = await resolveCredentials({});
 
-				expect(result.credentials.cookieHeader).toBe('li_at=env-li-at; JSESSIONID="env-jsession"');
+				expect(result.credentials.cookieHeader).toBe(buildCookieHeader("env-li-at","env-jsession"));
 			});
 
-			it("strips quotes from JSESSIONID if present", async () => {
+			it("strips quotes from session id if present", async () => {
 				process.env.LINKEDIN_LI_AT = "token";
-				process.env.LINKEDIN_JSESSIONID = '"quoted-jsession"';
+				process.env[LINKEDIN_JSID_ENV] = '"quoted-jsession"';
 
 				const result = await resolveCredentials({});
 
@@ -93,14 +99,14 @@ describe("auth", () => {
 				await expect(resolveCredentials({})).rejects.toThrow(/LinkedIn credentials not found/);
 			});
 
-			it("throws error when only li_at is found", async () => {
+			it(`throws error when only ${LI_AT_COOKIE_NAME} is found`, async () => {
 				process.env.LINKEDIN_LI_AT = "only-li-at";
 
 				await expect(resolveCredentials({})).rejects.toThrow(/LinkedIn credentials not found/);
 			});
 
-			it("throws error when only JSESSIONID is found", async () => {
-				process.env.LINKEDIN_JSESSIONID = "only-jsession";
+			it("throws error when only session id is found", async () => {
+				process.env[LINKEDIN_JSID_ENV] = "only-jsession";
 
 				await expect(resolveCredentials({})).rejects.toThrow(/LinkedIn credentials not found/);
 			});
@@ -110,13 +116,13 @@ describe("auth", () => {
 					await resolveCredentials({});
 				} catch (error) {
 					expect((error as Error).message).toContain("LINKEDIN_LI_AT");
-					expect((error as Error).message).toContain("LINKEDIN_JSESSIONID");
+					expect((error as Error).message).toContain(LINKEDIN_JSID_ENV);
 				}
 			});
 		});
 
 		describe("csrf token extraction", () => {
-			it("extracts CSRF token from JSESSIONID without quotes", async () => {
+			it("extracts CSRF token from session id without quotes", async () => {
 				const result = await resolveCredentials({
 					liAt: "token",
 					jsessionId: "ajax:1234567890",
@@ -125,7 +131,7 @@ describe("auth", () => {
 				expect(result.credentials.csrfToken).toBe("ajax:1234567890");
 			});
 
-			it("strips quotes from CSRF token if JSESSIONID had them", async () => {
+			it("strips quotes from CSRF token if session id had them", async () => {
 				const result = await resolveCredentials({
 					liAt: "token",
 					jsessionId: '"ajax:1234567890"',
@@ -137,7 +143,7 @@ describe("auth", () => {
 
 		describe("partial CLI flags", () => {
 			it("falls back to env vars when only liAt flag provided", async () => {
-				process.env.LINKEDIN_JSESSIONID = "env-jsession";
+				process.env[LINKEDIN_JSID_ENV] = "env-jsession";
 
 				const result = await resolveCredentials({
 					liAt: "cli-li-at",
@@ -183,8 +189,8 @@ describe("auth", () => {
 			const { getCookies } = await import("@steipete/sweet-cookie");
 			vi.mocked(getCookies).mockResolvedValue({
 				cookies: [
-					{ name: "li_at", value: "chrome-li-at-token" },
-					{ name: "JSESSIONID", value: "chrome-jsession-token" },
+					{ name: LI_AT_COOKIE_NAME, value: "chrome-li-at-token" },
+					{ name: JSID_COOKIE_NAME, value: "chrome-jsession-token" },
 				],
 				warnings: [],
 			});
@@ -202,14 +208,14 @@ describe("auth", () => {
 			const { getCookies } = await import("@steipete/sweet-cookie");
 			vi.mocked(getCookies).mockResolvedValue({
 				cookies: [
-					{ name: "li_at", value: "chrome-li-at" },
-					{ name: "JSESSIONID", value: "chrome-jsession" },
+					{ name: LI_AT_COOKIE_NAME, value: "chrome-li-at" },
+					{ name: JSID_COOKIE_NAME, value: "chrome-jsession" },
 				],
 				warnings: [],
 			});
 
 			process.env.LINKEDIN_LI_AT = "env-li-at";
-			process.env.LINKEDIN_JSESSIONID = "env-jsession";
+			process.env[LINKEDIN_JSID_ENV] = "env-jsession";
 
 			const result = await resolveCredentials({
 				cookieSource: ["chrome"],
@@ -240,12 +246,12 @@ describe("auth", () => {
 			expect(getCookies).not.toHaveBeenCalled();
 		});
 
-		it("strips quotes from Chrome JSESSIONID", async () => {
+		it("strips quotes from Chrome session id", async () => {
 			const { getCookies } = await import("@steipete/sweet-cookie");
 			vi.mocked(getCookies).mockResolvedValue({
 				cookies: [
-					{ name: "li_at", value: "chrome-li-at" },
-					{ name: "JSESSIONID", value: '"quoted-jsession"' },
+					{ name: LI_AT_COOKIE_NAME, value: "chrome-li-at" },
+					{ name: JSID_COOKIE_NAME, value: '"quoted-jsession"' },
 				],
 				warnings: [],
 			});

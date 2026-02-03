@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type ConnectOptions, connect } from "../../../src/commands/connect.js";
 import type { LinkedInCredentials } from "../../../src/lib/auth.js";
+import { buildCookieHeader } from "../../helpers/cookies.js";
 
 describe("connect command", () => {
 	const mockCredentials: LinkedInCredentials = {
 		liAt: "AQE-test-li-at-token",
 		jsessionId: "ajax:1234567890123456789",
-		cookieHeader: 'li_at=AQE-test-li-at-token; JSESSIONID="ajax:1234567890123456789"',
+		cookieHeader: buildCookieHeader("AQE-test-li-at-token","ajax:1234567890123456789"),
 		csrfToken: "ajax:1234567890123456789",
 		source: "env",
 	};
@@ -229,6 +230,14 @@ describe("connect command", () => {
 				json: async () => ({
 					elements: [],
 				}),
+			});
+
+			mockFetch.mockRejectedValueOnce(new Error("Not found"));
+
+			mockFetch.mockResolvedValueOnce({
+				ok: false,
+				status: 404,
+				text: async () => "",
 			});
 
 			mockFetch.mockResolvedValueOnce({

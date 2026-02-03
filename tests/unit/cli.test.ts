@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { buildCookieHeader } from "../helpers/cookies.js";
 
 // Mock all command modules
 const mockWhoami = vi.fn();
@@ -38,7 +39,7 @@ describe("CLI", () => {
 	const mockCredentials = {
 		liAt: "test-token",
 		jsessionId: "ajax:123",
-		cookieHeader: 'li_at=test-token; JSESSIONID="ajax:123"',
+		cookieHeader: buildCookieHeader("test-token","ajax:123"),
 		csrfToken: "ajax:123",
 		source: "env" as const,
 	};
@@ -272,6 +273,28 @@ describe("CLI", () => {
 				json: undefined,
 				count: 50,
 				start: 100,
+			});
+		});
+
+		it("passes --of identifier through to connections", async () => {
+			mockConnections.mockResolvedValue("Connections list");
+			vi.resetModules();
+
+			const originalArgv = process.argv;
+			process.argv = ["node", "li", "connections", "--of", "peggyrayzis"];
+
+			try {
+				await import("../../src/cli.js");
+				await new Promise((r) => setTimeout(r, 10));
+			} finally {
+				process.argv = originalArgv;
+			}
+
+			expect(mockConnections).toHaveBeenCalledWith(mockCredentials, {
+				json: undefined,
+				count: 20,
+				start: 0,
+				of: "peggyrayzis",
 			});
 		});
 	});
