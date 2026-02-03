@@ -321,6 +321,234 @@ export function parseConnectionsFromFlagshipRsc(payload: string): NormalizedConn
 }
 
 /**
+ * Parses connections from LinkedIn search HTML payloads.
+ * Falls back to miniProfile extraction when RSC stream isn't available.
+ */
+export function parseConnectionsFromSearchHtml(payload: string): NormalizedConnection[] {
+	const normalizedPayload = payload.replace(/\\u002F/g, "/").replace(/\\\//g, "/");
+	const miniProfileRegex =
+		/"miniProfile":\{[\s\S]{0,800}?"publicIdentifier":"([^"]+)"[\s\S]{0,800}?"firstName":"([^"]*)"[\s\S]{0,800}?"lastName":"([^"]*)"[\s\S]{0,800}?"occupation":"([^"]*)"/g;
+
+	const results: NormalizedConnection[] = [];
+	const seen = new Set<string>();
+
+	for (;;) {
+		const match = miniProfileRegex.exec(normalizedPayload);
+		if (!match) {
+			break;
+		}
+		const username = match[1];
+		const firstName = match[2] ?? "";
+		const lastName = match[3] ?? "";
+		const headline = match[4] ?? "";
+
+		if (!username || seen.has(username)) {
+			continue;
+		}
+
+		seen.add(username);
+		results.push({
+			urn: "",
+			username,
+			firstName,
+			lastName,
+			headline,
+			profileUrl: `${LINKEDIN_PROFILE_BASE_URL}${username}`,
+		});
+	}
+
+	return results;
+}
+
+/**
+ * Parses connections from LinkedIn search RSC stream payloads.
+ * Looks for "people-search-result" blocks and extracts profile URLs and names.
+ */
+export function parseConnectionsFromSearchStream(payload: string): NormalizedConnection[] {
+	const normalizedPayload = payload.replace(/\\u002F/g, "/").replace(/\\\//g, "/");
+	const marker = 'viewName":"people-search-result"';
+	const results: NormalizedConnection[] = [];
+	const seen = new Set<string>();
+
+	const decodeSearchText = (value: string): string => {
+		if (!value) {
+			return "";
+		}
+		try {
+			return JSON.parse(`"${value}"`);
+		} catch {
+			return value.replace(/\\"/g, '"');
+		}
+	};
+
+	const collectTextCandidates = (chunk: string): Array<{ raw: string; decoded: string }> => {
+		const results: Array<{ raw: string; decoded: string }> = [];
+		const textRegex = /"text-attr-0"[\s\S]*?"children":\["((?:\\.|[^"])*)"]/g;
+		for (;;) {
+			const match = textRegex.exec(chunk);
+			if (!match) {
+				break;
+			}
+			const raw = match[1] ?? "";
+			const decoded = decodeSearchText(raw).trim();
+			results.push({ raw, decoded });
+		}
+
+		const fallbackRegex = /"children":\["((?:\\.|[^"])*)"]/g;
+		for (;;) {
+			const match = fallbackRegex.exec(chunk);
+			if (!match) {
+				break;
+			}
+			const raw = match[1] ?? "";
+			const decoded = decodeSearchText(raw).trim();
+			results.push({ raw, decoded });
+		}
+
+		return results;
+	};
+
+	const pickBestCandidate = (candidates: Array<{ raw: string; decoded: string }>) => {
+		for (const candidate of candidates) {
+			const value = candidate.decoded;
+			if (!value) {
+				continue;
+			}
+			if (value.startsWith("$") || value === "$undefined") {
+				continue;
+			}
+			if (value.startsWith("•") || value.toLowerCase().includes("connections")) {
+				continue;
+			}
+			return candidate;
+		}
+		return undefined;
+	};
+
+	const isConnectionDegree = (value: string): boolean => {
+		if (!value) {
+			return false;
+		}
+		return /^•?\s*\d+(st|nd|rd|th)\+?\b/i.test(value.trim());
+	};
+
+	const normalizeDegree = (value: string): string => value.replace(/^•\s*/, "").trim();
+
+	const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+	const extractProfileId = (chunk: string, username: string): string => {
+		const escapedUsername = escapeRegex(username);
+		const urlPattern = `https:\\\\/\\\\/www\\.linkedin\\.com\\\\/in\\\\/${escapedUsername}\\\\/`;
+		const profileThenUrl = new RegExp(`"profileId":"([^"]+)"[\\s\\S]{0,1200}?"url":"${urlPattern}`);
+		const urlThenProfile = new RegExp(`"url":"${urlPattern}"[\\s\\S]{0,1200}?"profileId":"([^"]+)"`);
+		const profileThenUrlMatch = chunk.match(profileThenUrl);
+		if (profileThenUrlMatch?.[1]) {
+			return profileThenUrlMatch[1];
+		}
+		const urlThenProfileMatch = chunk.match(urlThenProfile);
+		if (urlThenProfileMatch?.[1]) {
+			return urlThenProfileMatch[1];
+		}
+		const anyProfileMatch = chunk.match(/"profileId":"([^"]+)"/);
+		return anyProfileMatch?.[1] ?? "";
+	};
+
+	let index = 0;
+	while (index < normalizedPayload.length) {
+		const start = normalizedPayload.indexOf(marker, index);
+		if (start === -1) {
+			break;
+		}
+		const chunk = normalizedPayload.slice(start, start + 12000);
+		const urlMatch = chunk.match(/"url":"https:\/\/www\.linkedin\.com\/in\/([^"\/]+)\//);
+		if (!urlMatch) {
+			index = start + marker.length;
+			continue;
+		}
+		const username = urlMatch[1] ?? "";
+		if (!username || seen.has(username)) {
+			index = start + marker.length;
+			continue;
+		}
+		const profileId = extractProfileId(chunk, username);
+
+		let name = "";
+		let rawName = "";
+		const titleIndex = chunk.indexOf("search-result-lockup-title");
+		if (titleIndex !== -1) {
+			const titleChunk = chunk.slice(titleIndex, titleIndex + 7000);
+			const candidate = pickBestCandidate(collectTextCandidates(titleChunk));
+			if (candidate) {
+				name = candidate.decoded;
+				rawName = candidate.raw;
+			}
+		}
+
+		if (!name) {
+			const candidate = pickBestCandidate(collectTextCandidates(chunk));
+			if (candidate) {
+				name = candidate.decoded;
+				rawName = candidate.raw;
+			}
+		}
+
+		const nameParts = name.trim().split(/\s+/);
+		const firstName = nameParts[0] ?? "";
+		const lastName = nameParts.slice(1).join(" ");
+
+		const socialProofIndex = chunk.indexOf("search-result-social-proof-insight", titleIndex);
+		const headlineChunk =
+			titleIndex !== -1
+				? chunk.slice(titleIndex, socialProofIndex === -1 ? titleIndex + 8000 : socialProofIndex)
+				: chunk;
+		const headlineCandidates = collectTextCandidates(headlineChunk).filter(
+			(candidate) =>
+				candidate.decoded &&
+				!candidate.decoded.startsWith("$") &&
+				candidate.decoded !== "$undefined",
+		);
+
+		const nameIndex = headlineCandidates.findIndex((candidate) => candidate.decoded === name);
+		const degreeCandidate = headlineCandidates.find((candidate) =>
+			isConnectionDegree(candidate.decoded),
+		);
+		const connectionDegree = degreeCandidate ? normalizeDegree(degreeCandidate.decoded) : "";
+
+		let headline = "";
+		const startIndex = nameIndex >= 0 ? nameIndex + 1 : 0;
+		for (let i = startIndex; i < headlineCandidates.length; i += 1) {
+			const value = headlineCandidates[i]?.decoded ?? "";
+			if (!value || value === name) {
+				continue;
+			}
+			if (isConnectionDegree(value)) {
+				continue;
+			}
+			if (value.startsWith("•") || /connections|followers|mutual/i.test(value)) {
+				continue;
+			}
+			headline = value;
+			break;
+		}
+
+		seen.add(username);
+		results.push({
+			urn: profileId ? `urn:li:fsd_profile:${profileId}` : "",
+			username,
+			firstName,
+			lastName,
+			headline,
+			profileUrl: `${LINKEDIN_PROFILE_BASE_URL}${username}`,
+			...(connectionDegree ? { connectionDegree } : {}),
+		});
+
+		index = start + marker.length;
+	}
+
+	return results;
+}
+
+/**
  * Parses invitations from LinkedIn flagship-web RSC payloads.
  * These payloads are not JSON and require regex extraction.
  */

@@ -34,6 +34,7 @@ export interface NormalizedConnection {
 	lastName: string;
 	headline: string;
 	profileUrl: string;
+	connectionDegree?: string;
 }
 
 /**

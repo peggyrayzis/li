@@ -107,6 +107,7 @@ li connections [-n 20]                   # Your 1st-degree connections
 li connections -n 150                    # Paginate to return more than 50
 li connections --all                     # Full list (paginated until exhausted)
 li connections --json                    # Connection data as JSON
+li connections --of <identifier>         # Connection-of search (total unknown)
 
 # Invitations (read-only)
 li invites                               # Pending connection invitations
@@ -121,7 +122,7 @@ Flagship RSC pagination returns up to 50 connections per request and does not ex
 500 connections = ~10 requests
 30K connections (LinkedIn max) = ~600 requests
 Network flags:
-FlagDescription-nNumber of results (default: 20)--allPaginate through all results (until exhausted)--confirmRequired for bulk operations like --accept-all
+FlagDescription-nNumber of results (default: 20)--allPaginate through all results (until exhausted)--ofList a connection's connections (username, URL, or URN)--confirmRequired for bulk operations like --accept-all
 What's NOT in v0.1 (deferred to v0.2):
 
 li post — posting (stable endpoint, deferred to cut scope)
@@ -264,7 +265,7 @@ json{
   }]
 }
 Connection & Network Endpoints
-CommandMethodEndpointNotesconnectionsPOSTflagship-web/rsc-action/actions/pagination?sduiid=com.linkedin.sdui.pagers.mynetwork.connectionsListRSC pagination; max 50 per request; total not exposed.whoami (counts)GET/meDisplay "500+" when exact count unavailable.profileGET/identity/dash/profiles?q=memberIdentity&memberIdentity={username}Resolve profile URN + fetch dash profile.invitations (list)POSTflagship-web/rsc-action/actions/pagination?sduiid=com.linkedin.sdui.pagers.mynetwork.invitationsListRSC pagination for pending invites.
+CommandMethodEndpointNotesconnectionsPOSTflagship-web/rsc-action/actions/pagination?sduiid=com.linkedin.sdui.pagers.mynetwork.connectionsListRSC pagination; max 50 per request; total not exposed.connections --ofPOSTflagship-web/rsc-action/actions/pagination?sduiid=com.linkedin.sdui.pagers.search.resultsRSC search pagination with connectionOf filter; total not exposed.whoami (counts)GET/meDisplay "500+" when exact count unavailable.profileGET/identity/dash/profiles?q=memberIdentity&memberIdentity={username}Resolve profile URN + fetch dash profile.invitations (list)POSTflagship-web/rsc-action/actions/pagination?sduiid=com.linkedin.sdui.pagers.mynetwork.invitationsListRSC pagination for pending invites.
 Other v0.1 Endpoints
 CommandMethodEndpointwhoamiGET/me + /identity/profiles/{slug}/networkinfo
 Endpoint Reference — v0.2+ (GraphQL)

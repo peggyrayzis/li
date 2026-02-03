@@ -8,7 +8,23 @@
  */
 
 import type { LinkedInClient } from "./client.js";
+import endpoints from "./endpoints.json" with { type: "json" };
+import { buildWebHeaders } from "./headers.js";
+import { parseProfile } from "./parser.js";
 import { parseLinkedInUrl } from "./url-parser.js";
+
+const DEBUG_RECIPIENT =
+	process.env.LI_DEBUG_RECIPIENT === "1" || process.env.LI_DEBUG_RECIPIENT === "true";
+const DEBUG_RECIPIENT_DUMP =
+	process.env.LI_DEBUG_RECIPIENT_DUMP === "1" ||
+	process.env.LI_DEBUG_RECIPIENT_DUMP === "true";
+
+function debugRecipient(message: string): void {
+	if (!DEBUG_RECIPIENT) {
+		return;
+	}
+	process.stderr.write(`[li][recipient] ${message}\n`);
+}
 
 /**
  * Result of resolving a recipient identifier.
@@ -81,6 +97,7 @@ export async function resolveRecipient(
 
 	// Parse the input to determine type
 	const parsed = parseLinkedInUrl(trimmed);
+	debugRecipient(`input=${trimmed} parsed=${parsed?.type ?? "null"}`);
 
 	// Handle non-LinkedIn URLs (returns null)
 	if (parsed === null) {
@@ -105,6 +122,7 @@ export async function resolveRecipient(
  * Look up a profile by URN to get both URN and username.
  */
 async function lookupProfileByUrn(client: LinkedInClient, urn: string): Promise<ResolvedRecipient> {
+	debugRecipient(`lookupProfileByUrn urn=${urn}`);
 	const response = await client.request(
 		`/identity/dash/profiles?q=memberIdentity&memberIdentity=${encodeURIComponent(urn)}`,
 		{ method: "GET" },
@@ -112,6 +130,7 @@ async function lookupProfileByUrn(client: LinkedInClient, urn: string): Promise<
 	const data = (await response.json()) as ProfileLookupResponse;
 
 	if (!data.elements || data.elements.length === 0) {
+		debugRecipient(`lookupProfileByUrn not found urn=${urn}`);
 		throw new Error(`Profile not found for URN: ${urn}`);
 	}
 
@@ -128,6 +147,7 @@ async function lookupProfileByUsername(
 	client: LinkedInClient,
 	username: string,
 ): Promise<ResolvedRecipient> {
+	debugRecipient(`lookupProfileByUsername username=${username}`);
 	const response = await client.request(
 		`/identity/dash/profiles?q=memberIdentity&memberIdentity=${encodeURIComponent(username)}`,
 		{ method: "GET" },
@@ -135,6 +155,18 @@ async function lookupProfileByUsername(
 	const data = (await response.json()) as ProfileLookupResponse;
 
 	if (!data.elements || data.elements.length === 0) {
+		debugRecipient(`dash lookup empty username=${username}`);
+		const fallback = await lookupProfileByUsernameView(client, username);
+		if (fallback) {
+			return fallback;
+		}
+
+		const htmlFallback = await lookupProfileByHtml(client, username);
+		if (htmlFallback) {
+			return htmlFallback;
+		}
+
+		debugRecipient(`falling back to /me username=${username}`);
 		const meResponse = await client.request("/me", { method: "GET" });
 		const meData = (await meResponse.json()) as MeResponse;
 		const meMini =
@@ -161,6 +193,110 @@ async function lookupProfileByUsername(
 		username: data.elements[0].publicIdentifier ?? username,
 		urn: data.elements[0].entityUrn,
 	};
+}
+
+async function lookupProfileByUsernameView(
+	client: LinkedInClient,
+	username: string,
+): Promise<ResolvedRecipient | null> {
+	try {
+		const endpoint = endpoints.endpoints.profile.replace(
+			"{username}",
+			encodeURIComponent(username),
+		);
+		const response = await client.request(endpoint, { method: "GET" });
+		debugRecipient(`profileView status=${response.status} username=${username}`);
+		const rawData = (await response.json()) as Record<string, unknown>;
+		const profile = parseProfile(rawData);
+		if (!profile.urn) {
+			return null;
+		}
+		return {
+			username: profile.username || username,
+			urn: profile.urn,
+		};
+	} catch {
+		return null;
+	}
+}
+
+async function lookupProfileByHtml(
+	client: LinkedInClient,
+	username: string,
+): Promise<ResolvedRecipient | null> {
+	try {
+		const credentials = client.getCredentials();
+		const url = `https://www.linkedin.com/in/${encodeURIComponent(username)}/`;
+		let response = await client.requestAbsolute(url, {
+			method: "GET",
+			headers: buildWebHeaders(credentials),
+		});
+		debugRecipient(`profileHtml status=${response.status} username=${username}`);
+
+		if (response.status === 302) {
+			const location = response.headers?.get?.("location") ?? "";
+			if (location) {
+				const nextUrl = location.startsWith("http")
+					? location
+					: `https://www.linkedin.com${location}`;
+				debugRecipient(`profileHtml redirect=${nextUrl}`);
+				response = await client.requestAbsolute(nextUrl, {
+					method: "GET",
+					headers: buildWebHeaders(credentials),
+				});
+				debugRecipient(`profileHtml redirectStatus=${response.status} username=${username}`);
+			}
+		}
+
+		if (!response.ok) {
+			return null;
+		}
+		const html = await response.text();
+		if (DEBUG_RECIPIENT_DUMP) {
+			const dumpPath = `/tmp/li-profile-html-${username}.html`;
+			try {
+				await import("node:fs").then(({ writeFileSync }) =>
+					writeFileSync(dumpPath, html, "utf8"),
+				);
+				debugRecipient(`profileHtml dump=${dumpPath}`);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				debugRecipient(`profileHtml dump_error=${message}`);
+			}
+		}
+		const decoded = html.replace(/\\u002F/g, "/");
+
+		const profileUrnMatch = decoded.match(/urn:li:fsd_profile:[^"\\s]+/);
+		const profileIdMatch = decoded.match(/"profileId":"([^"]+)"/);
+		const memberUrnMatch = decoded.match(/urn:li:member:[^"\\s]+/);
+		const publicIdentifierMatch = decoded.match(/"publicIdentifier":"([^"]+)"/);
+		const urn =
+			profileUrnMatch?.[0] ??
+			(profileIdMatch ? `urn:li:fsd_profile:${profileIdMatch[1]}` : undefined) ??
+			memberUrnMatch?.[0] ??
+			"";
+		if (!urn) {
+			debugRecipient(`profileHtml urn not found username=${username}`);
+			return null;
+		}
+
+		debugRecipient(`profileHtml urn=${urn} username=${username}`);
+
+		if (urn.startsWith("urn:li:member:")) {
+			try {
+				return await lookupProfileByUrn(client, urn);
+			} catch {
+				// Fall through to return the member urn if lookup fails.
+			}
+		}
+
+		return {
+			username: publicIdentifierMatch?.[1] ?? username,
+			urn,
+		};
+	} catch {
+		return null;
+	}
 }
 
 function normalizeProfileUrn(urn: string): string {

@@ -6,8 +6,14 @@
 import type { LinkedInCredentials } from "../lib/auth.js";
 import { LinkedInClient } from "../lib/client.js";
 import { buildHeaders } from "../lib/headers.js";
-import { parseConnectionsFromFlagshipRsc } from "../lib/parser.js";
+import {
+	parseConnectionsFromFlagshipRsc,
+	parseConnectionsFromSearchHtml,
+	parseConnectionsFromSearchStream,
+} from "../lib/parser.js";
+import { resolveRecipient } from "../lib/recipient.js";
 import type { NormalizedConnection } from "../lib/types.js";
+import { extractIdFromUrn } from "../lib/url-parser.js";
 import { formatConnection, formatPagination } from "../output/human.js";
 import { formatJson } from "../output/json.js";
 
@@ -16,6 +22,7 @@ export interface ConnectionsOptions {
 	start?: number;
 	count?: number;
 	all?: boolean;
+	of?: string;
 }
 
 interface ConnectionsResult {
@@ -29,12 +36,21 @@ interface ConnectionsResult {
 
 const FLAGSHIP_CONNECTIONS_URL =
 	"https://www.linkedin.com/flagship-web/rsc-action/actions/pagination?sduiid=com.linkedin.sdui.pagers.mynetwork.connectionsList";
+const FLAGSHIP_CONNECTIONS_OF_URL = "https://www.linkedin.com/flagship-web/search/results/people/";
 const FLAGSHIP_CONNECTIONS_REFERER =
 	"https://www.linkedin.com/mynetwork/invite-connect/connections/";
 const FLAGSHIP_PAGE_INSTANCE =
 	"urn:li:page:d_flagship3_people_connections;fkBHD5OCSzq7lUUo2+5Oiw==";
+const FLAGSHIP_SEARCH_PAGE_INSTANCE =
+	"urn:li:page:d_flagship3_search_srp_people;4GLXsZt9SMWi+zWnoT3o9w==";
 const FLAGSHIP_TRACK =
 	'{"clientVersion":"0.2.3802","mpVersion":"0.2.3802","osName":"web","timezoneOffset":-5,"timezone":"America/New_York","deviceFormFactor":"DESKTOP","mpName":"web","displayDensity":2,"displayWidth":3024,"displayHeight":1964}';
+const CONNECTIONS_OF_PAGE_SIZE = 10;
+const DEBUG_CONNECTIONS =
+	process.env.LI_DEBUG_CONNECTIONS === "1" || process.env.LI_DEBUG_CONNECTIONS === "true";
+const DEBUG_CONNECTIONS_DUMP =
+	process.env.LI_DEBUG_CONNECTIONS_DUMP === "1" ||
+	process.env.LI_DEBUG_CONNECTIONS_DUMP === "true";
 
 /**
  * List LinkedIn connections with pagination support.
@@ -52,18 +68,59 @@ export async function connections(
 	const requestedCount = options.count ?? 20;
 	const fetchAll = options.all ?? false;
 	const count = fetchAll ? null : Math.max(0, requestedCount);
+	const connectionOfIdentifier = options.of?.trim();
+	const connectionOf = connectionOfIdentifier
+		? await resolveRecipient(client, connectionOfIdentifier)
+		: null;
+	const connectionOfId = connectionOf ? extractIdFromUrn(connectionOf.urn) : null;
+	const referer = connectionOfId
+		? buildConnectionsOfReferer(connectionOfId, 1)
+		: FLAGSHIP_CONNECTIONS_REFERER;
+	const requestUrl = connectionOfId
+		? buildConnectionsOfRequestUrl(connectionOfId, 1)
+		: FLAGSHIP_CONNECTIONS_URL;
+	const buildBody = connectionOf
+		? (startIndex: number, _pageSize: number) =>
+				buildConnectionsOfSearchBody(startIndex, connectionOfId ?? "")
+		: buildConnectionsPaginationBody;
+	const effectiveStart =
+		connectionOfId && start > 0
+			? Math.floor(start / CONNECTIONS_OF_PAGE_SIZE) * CONNECTIONS_OF_PAGE_SIZE
+			: start;
+	const skip = connectionOfId ? start - effectiveStart : 0;
 
+	const pageInstance = connectionOfId ? FLAGSHIP_SEARCH_PAGE_INSTANCE : FLAGSHIP_PAGE_INSTANCE;
 	const headers = {
 		...buildHeaders(credentials),
 		Accept: "*/*",
 		"Content-Type": "application/json",
 		Origin: "https://www.linkedin.com",
-		Referer: FLAGSHIP_CONNECTIONS_REFERER,
-		"X-Li-Page-Instance": FLAGSHIP_PAGE_INSTANCE,
+		Referer: referer,
+		"X-Li-Page-Instance": pageInstance,
 		"X-Li-Track": FLAGSHIP_TRACK,
+		...(connectionOfId ? { "X-Li-Rsc-Stream": "true" } : {}),
 	};
 
-	const normalizedConnections = await fetchConnectionsFromFlagship(client, headers, start, count);
+	const normalizedConnections = await fetchConnectionsFromFlagship(
+		client,
+		requestUrl,
+		headers,
+		effectiveStart,
+		count,
+		buildBody,
+		skip,
+		connectionOfId
+			? (startIndex: number) => {
+					const page = Math.floor(startIndex / CONNECTIONS_OF_PAGE_SIZE) + 1;
+					return {
+						url: buildConnectionsOfRequestUrl(connectionOfId, page),
+						referer: buildConnectionsOfReferer(connectionOfId, page),
+					};
+				}
+			: undefined,
+		connectionOfId ? CONNECTIONS_OF_PAGE_SIZE : undefined,
+		Boolean(connectionOfId),
+	);
 
 	const result: ConnectionsResult = {
 		connections: normalizedConnections,
@@ -83,28 +140,93 @@ export async function connections(
 
 async function fetchConnectionsFromFlagship(
 	client: LinkedInClient,
+	requestUrl: string,
 	headers: Record<string, string>,
 	start: number,
 	count: number | null,
+	buildBody: (startIndex: number, pageSize: number) => Record<string, unknown>,
+	skip = 0,
+	buildRequest?: (startIndex: number, pageSize: number) => { url?: string; referer?: string },
+	pageStep?: number,
+	preferSearchParser = false,
 ): Promise<NormalizedConnection[]> {
 	const connections: NormalizedConnection[] = [];
 	const seen = new Set<string>();
 	let currentStart = start;
 	let iterations = 0;
+	let remainingSkip = Math.max(0, skip);
 	const targetCount = count ?? Number.POSITIVE_INFINITY;
-	const maxIterations = count === null ? 1000 : Math.max(20, Math.ceil(targetCount / 50) + 5);
+	const estimatedPageSize = pageStep && pageStep > 0 ? pageStep : 50;
+	const maxIterations =
+		count === null ? 1000 : Math.max(20, Math.ceil(targetCount / estimatedPageSize) + 5);
 
 	while (connections.length < targetCount && iterations < maxIterations) {
-		const body = JSON.stringify(buildConnectionsPaginationBody(currentStart));
-		const response = await client.requestAbsolute(FLAGSHIP_CONNECTIONS_URL, {
+		const remaining = targetCount - connections.length;
+		const pageSize = Number.isFinite(remaining) ? Math.max(1, Math.min(50, remaining)) : 50;
+		const body = JSON.stringify(buildBody(currentStart, pageSize));
+		const requestOverride = buildRequest?.(currentStart, pageSize);
+		const effectiveUrl = requestOverride?.url ?? requestUrl;
+		const effectiveHeaders = requestOverride?.referer
+			? { ...headers, Referer: requestOverride.referer }
+			: headers;
+		if (DEBUG_CONNECTIONS) {
+			const preview = body.length > 2000 ? `${body.slice(0, 2000)}…` : body;
+			process.stderr.write(
+				`[li][connections] url=${effectiveUrl} start=${currentStart} pageSize=${pageSize} body=${preview}\n`,
+			);
+		}
+		const response = await client.requestAbsolute(effectiveUrl, {
 			method: "POST",
-			headers,
+			headers: effectiveHeaders,
 			body,
 		});
+		if (DEBUG_CONNECTIONS) {
+			process.stderr.write(
+				`[li][connections] status=${response.status} ok=${response.ok} url=${effectiveUrl}\n`,
+			);
+		}
 
 		const buffer = await response.arrayBuffer();
 		const payload = new TextDecoder("utf-8").decode(buffer);
-		const pageConnections = parseConnectionsFromFlagshipRsc(payload);
+		if (DEBUG_CONNECTIONS_DUMP) {
+			const dumpPath = `/tmp/li-connections-of-${currentStart}.txt`;
+			try {
+				await import("node:fs").then(({ writeFileSync }) =>
+					writeFileSync(dumpPath, payload, "utf8"),
+				);
+				process.stderr.write(`[li][connections] dump=${dumpPath}\n`);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				process.stderr.write(`[li][connections] dump_error=${message}\n`);
+			}
+		}
+		if (DEBUG_CONNECTIONS) {
+			const preview = payload.length > 2000 ? `${payload.slice(0, 2000)}…` : payload;
+			process.stderr.write(
+				`[li][connections] payload_length=${payload.length} preview=${preview}\n`,
+			);
+		}
+		let pageConnections: NormalizedConnection[] = [];
+		const isHtml = payload.trim().startsWith("<!DOCTYPE");
+
+		if (preferSearchParser) {
+			pageConnections = isHtml
+				? parseConnectionsFromSearchHtml(payload)
+				: parseConnectionsFromSearchStream(payload);
+			if (pageConnections.length === 0) {
+				const htmlFallback = parseConnectionsFromSearchHtml(payload);
+				pageConnections = htmlFallback.length > 0 ? htmlFallback : parseConnectionsFromFlagshipRsc(payload);
+			}
+		} else {
+			pageConnections = isHtml
+				? parseConnectionsFromSearchHtml(payload)
+				: parseConnectionsFromFlagshipRsc(payload);
+			if (pageConnections.length === 0) {
+				const searchFallback = parseConnectionsFromSearchHtml(payload);
+				pageConnections =
+					searchFallback.length > 0 ? searchFallback : parseConnectionsFromSearchStream(payload);
+			}
+		}
 
 		if (pageConnections.length === 0) {
 			break;
@@ -112,6 +234,10 @@ async function fetchConnectionsFromFlagship(
 
 		let added = 0;
 		for (const connection of pageConnections) {
+			if (remainingSkip > 0) {
+				remainingSkip -= 1;
+				continue;
+			}
 			if (seen.has(connection.username)) {
 				continue;
 			}
@@ -127,14 +253,15 @@ async function fetchConnectionsFromFlagship(
 			break;
 		}
 
-		currentStart += pageConnections.length;
+		const advanceBy = pageStep && pageStep > 0 ? pageStep : pageConnections.length;
+		currentStart += advanceBy;
 		iterations += 1;
 	}
 
 	return connections;
 }
 
-function buildConnectionsPaginationBody(startIndex: number): Record<string, unknown> {
+function buildConnectionsPaginationBody(startIndex: number, _pageSize: number): Record<string, unknown> {
 	return {
 		pagerId: "com.linkedin.sdui.pagers.mynetwork.connectionsList",
 		clientArguments: {
@@ -204,6 +331,139 @@ function buildConnectionsPaginationBody(startIndex: number): Record<string, unkn
 				},
 			},
 			retryCount: 2,
+		},
+	};
+}
+
+function buildConnectionsOfQuery(connectionOfId: string, page = 1): URLSearchParams {
+	const params = new URLSearchParams({
+		origin: "FACETED_SEARCH",
+		connectionOf: `"${connectionOfId}"`,
+		spellCorrectionEnabled: "true",
+	});
+	if (page > 1) {
+		params.set("page", String(page));
+	}
+	return params;
+}
+
+function buildConnectionsOfRequestUrl(connectionOfId: string, page = 1): string {
+	const params = buildConnectionsOfQuery(connectionOfId, page);
+	return `${FLAGSHIP_CONNECTIONS_OF_URL}?${params.toString()}`;
+}
+
+function buildConnectionsOfReferer(connectionOfId: string, page = 1): string {
+	const params = buildConnectionsOfQuery(connectionOfId, page);
+	return `https://www.linkedin.com/search/results/people/?${params.toString()}`;
+}
+
+function buildConnectionsOfSearchPath(connectionOfId: string, page = 1): string {
+	const params = buildConnectionsOfQuery(connectionOfId, page);
+	return `/search/results/people/?${params.toString()}`;
+}
+
+function buildConnectionsOfSearchBody(startIndex: number, connectionOfId: string): Record<string, unknown> {
+	const page = Math.floor(startIndex / CONNECTIONS_OF_PAGE_SIZE) + 1;
+	const pageKey = `SearchResultsauto-binding-${page}`;
+
+	return {
+		$type: "proto.sdui.actions.core.NavigateToScreen",
+		screenId: "com.linkedin.sdui.flagshipnav.search.SearchResultsPeople",
+		pageKey: "search_srp_people",
+		presentationStyle: "PresentationStyle_FULL_PAGE",
+		presentation: {
+			$case: "fullPage",
+			fullPage: {
+				$type: "proto.sdui.actions.core.presentation.FullPagePresentation",
+			},
+		},
+		title: "Search",
+		newHierarchy: {
+			$type: "proto.sdui.navigation.ScreenHierarchy",
+			screenHash: "com.linkedin.sdui.flagshipnav.home.Home#0",
+			screenId: "com.linkedin.sdui.flagshipnav.home.Home",
+			pageKey: "",
+			isAnchorPage: false,
+			childHierarchy: {
+				$type: "proto.sdui.navigation.ScreenHierarchy",
+				screenHash: "com.linkedin.sdui.flagshipnav.search.SearchResults#0",
+				screenId: "com.linkedin.sdui.flagshipnav.search.SearchResults",
+				pageKey: "",
+				isAnchorPage: false,
+				childHierarchy: {
+					$type: "proto.sdui.navigation.ScreenHierarchy",
+					screenHash: "com.linkedin.sdui.flagshipnav.search.SearchResultsPeople#0",
+					screenId: "com.linkedin.sdui.flagshipnav.search.SearchResultsPeople",
+					pageKey: "",
+					isAnchorPage: false,
+					url: "",
+				},
+				url: "",
+			},
+			url: "",
+		},
+		url: buildConnectionsOfSearchPath(connectionOfId, page),
+		inheritActor: false,
+		colorScheme: "ColorScheme_UNKNOWN",
+		disableScreenGutters: false,
+		shouldHideMobileTopNavBar: true,
+		shouldHideLoadingSpinner: false,
+		screenTitle: ["Search"],
+		replaceCurrentScreen: false,
+		shouldHideMobileTopNavBarDivider: false,
+		requestedArguments: {
+			payload: {
+				origin: "FACETED_SEARCH",
+				network: [{ filterKey: "network" }],
+				geoUrn: [{ filterKey: "geoUrn" }],
+				activelyHiringForJobTitles: [{ filterKey: "-100" }],
+				companyHQBingGeo: [{ filterKey: "companyHQBingGeo" }],
+				companySizeV2: [{ filterKey: "companySizeV2" }],
+				functionV2: [{ filterKey: "functionV2" }],
+				seniorityV2: [{ filterKey: "seniorityV2" }],
+				openToVolunteer: [{ filterKey: "openToVolunteer" }],
+				firstName: [{ filterKey: "firstName" }],
+				lastName: [{ filterKey: "firstName" }],
+				title: [{ filterKey: "firstName" }],
+				company: [{ filterKey: "firstName" }],
+				schoolFreetext: [{ filterKey: "firstName" }],
+				currentCompany: [{ filterKey: "currentCompany" }],
+				industry: [{ filterKey: "industry" }],
+				schoolFilter: [{ filterKey: "schoolFilter" }],
+				connectionOf: [
+					{
+						filterKey: "connectionOf",
+						filterItemSingle: connectionOfId,
+					},
+				],
+				pastCompany: [{ filterKey: "pastCompany" }],
+				followerOf: [{ filterKey: "followerOf" }],
+				serviceCategory: [{ filterKey: "serviceCategory" }],
+				profileLanguage: [{ filterKey: "profileLanguage" }],
+				eventAttending: [{ filterKey: "eventAttending" }],
+				page: [
+					{
+						pageField: {
+							type: "com.linkedin.sdui.components.core.BindingImpl",
+							value: {
+								key: pageKey,
+								namespace: "MemoryNamespace",
+							},
+						},
+					},
+				],
+				spellCorrectionEnabled: true,
+			},
+			states: [
+				{
+					key: pageKey,
+					namespace: "MemoryNamespace",
+					value: page,
+					originalProtoCase: "intValue",
+				},
+			],
+			requestMetadata: { $type: "proto.sdui.common.RequestMetadata" },
+			screenId: "",
 		},
 	};
 }

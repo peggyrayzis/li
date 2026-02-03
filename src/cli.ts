@@ -158,6 +158,7 @@ program
 	.option("-n, --count <number>", "Number of connections to show", "20")
 	.option("--all", "Fetch all connections")
 	.option("--start <number>", "Start offset for pagination", "0")
+	.option("--of <identifier>", "List connections of a specific profile")
 	.action(async (options) => {
 		try {
 			const globalOpts = program.opts();
@@ -167,6 +168,7 @@ program
 				all: options.all,
 				count: Number.parseInt(options.count, 10),
 				start: Number.parseInt(options.start, 10),
+				of: options.of,
 			});
 			console.log(output);
 		} catch (error) {

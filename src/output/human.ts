@@ -97,8 +97,15 @@ export function formatConnection(connection: NormalizedConnection): string {
 	const fullName = `${connection.firstName} ${connection.lastName}`;
 	const parts = [`\u{1F517} ${pc.bold(fullName)} ${pc.dim(`@${connection.username}`)}`];
 
+	const headlineParts: string[] = [];
+	if (connection.connectionDegree) {
+		headlineParts.push(connection.connectionDegree);
+	}
 	if (connection.headline) {
-		parts.push(`   ${pc.dim(connection.headline)}`);
+		headlineParts.push(connection.headline);
+	}
+	if (headlineParts.length > 0) {
+		parts.push(`   ${pc.dim(headlineParts.join(" - "))}`);
 	}
 
 	return parts.join("\n");
