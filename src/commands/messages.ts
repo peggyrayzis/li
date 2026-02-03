@@ -114,6 +114,15 @@ interface ConversationsGraphQLResponse {
 	};
 }
 
+interface ConversationsApiResponse {
+	elements?: Array<Record<string, unknown>>;
+	paging?: {
+		total: number;
+		count: number;
+		start: number;
+	};
+}
+
 /**
  * List recent conversations.
  *
@@ -133,6 +142,16 @@ export async function listConversations(
 	const mailboxUrn = await resolveMailboxUrn(client);
 	const snapshotInfo = await runtimeQueryIds.getSnapshotInfo();
 	const snapshotHeaders = snapshotInfo?.snapshot.headers ?? {};
+	const snapshotIds = snapshotInfo?.snapshot.ids ?? {};
+	const hasConversationQueryId = CONVERSATION_QUERY_ID_OPERATIONS.some(
+		(operation) => Boolean(snapshotIds[operation]),
+	);
+	const shouldUseRestFallback =
+		process.env.NODE_ENV !== "test" &&
+		!process.env.LINKEDIN_MESSAGING_QUERY_ID &&
+		Boolean(snapshotInfo) &&
+		!hasConversationQueryId &&
+		Object.keys(snapshotIds).length > 0;
 	const lastUpdatedBefore = Date.now();
 	const { queryId, operation } = await resolveMessagingQueryId();
 	const snapshotVariables = snapshotInfo?.snapshot.variables?.[operation];
@@ -144,6 +163,13 @@ export async function listConversations(
 				(_, value: string) => `mailboxUrn:${encodeURIComponent(value)}`,
 			)
 		: computedVariables;
+	if (shouldUseRestFallback) {
+		const restResult = await listConversationsFromRest(client, start, count);
+		if (options.json) {
+			return formatJson(restResult);
+		}
+		return formatHumanConversationsList(restResult);
+	}
 	debugMessages(`queryId=${queryId} variables=${variables}`);
 	if (Object.keys(snapshotHeaders).length > 0) {
 		debugMessages(`headers=${JSON.stringify(snapshotHeaders)}`);
@@ -227,6 +253,34 @@ export async function listConversations(
 	}
 
 	return formatHumanConversationsList(result);
+}
+
+async function listConversationsFromRest(
+	client: LinkedInClient,
+	start: number,
+	count: number,
+): Promise<ListConversationsResult> {
+	const response = await client.request(
+		`/messaging/conversations?start=${start}&count=${count}`,
+		{ method: "GET" },
+	);
+	const data = (await response.json()) as ConversationsApiResponse;
+	const elements = data.elements ?? [];
+	const conversations = elements.map((element) => parseConversation(element));
+	const paging = data.paging ?? {
+		total: conversations.length,
+		count: conversations.length,
+		start,
+	};
+
+	return {
+		conversations,
+		paging: {
+			total: Math.max(paging.total ?? 0, start + conversations.length),
+			count: conversations.length,
+			start,
+		},
+	};
 }
 
 async function resolveMailboxUrn(client: LinkedInClient): Promise<string> {
