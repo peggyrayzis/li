@@ -434,9 +434,7 @@ function parseInvitationsFromFlagshipRscFallback(payload: string): NormalizedInv
 					firstName: nameMatch.firstName,
 					lastName: nameMatch.lastName,
 					occupation: headline,
-					entityUrn: profileIdMatch?.[1]
-						? `urn:li:fsd_profile:${profileIdMatch[1]}`
-						: "",
+					entityUrn: profileIdMatch?.[1] ? `urn:li:fsd_profile:${profileIdMatch[1]}` : "",
 				},
 			},
 		};

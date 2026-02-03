@@ -206,10 +206,7 @@ invitesCmd
 	.command("list", { isDefault: true })
 	.description("List pending invitations")
 	.option("--json", "Output as JSON")
-	.option(
-		"--include-secrets",
-		"Include invitation IDs and shared secrets in JSON output (unsafe)",
-	)
+	.option("--include-secrets", "Include invitation IDs and shared secrets in JSON output (unsafe)")
 	.action(async (options) => {
 		try {
 			const globalOpts = program.opts();

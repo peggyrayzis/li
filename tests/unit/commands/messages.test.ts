@@ -148,10 +148,11 @@ describe("messages command", () => {
 				ids: { messengerConversations: "messengerConversations.test123" },
 				discovery: { harPath: "linkedIn-html" },
 			});
-			const getIdSpy = vi.spyOn(runtimeQueryIds, "getId").mockImplementation(
-				async (operation: string) =>
+			const getIdSpy = vi
+				.spyOn(runtimeQueryIds, "getId")
+				.mockImplementation(async (operation: string) =>
 					operation === "messengerConversations" ? "messengerConversations.test123" : null,
-			);
+				);
 			const snapshotSpy = vi.spyOn(runtimeQueryIds, "getSnapshotInfo").mockResolvedValue(null);
 
 			let graphqlCalls = 0;

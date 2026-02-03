@@ -6,6 +6,7 @@
  * - Accepting invitations by ID or URN
  */
 
+import { writeFileSync } from "node:fs";
 import type { LinkedInCredentials } from "../lib/auth.js";
 import { LinkedInClient } from "../lib/client.js";
 import endpoints from "../lib/endpoints.json" with { type: "json" };
@@ -13,7 +14,6 @@ import { buildHeaders } from "../lib/headers.js";
 import { parseInvitationsFromFlagshipRsc } from "../lib/parser.js";
 import type { NormalizedInvitation } from "../lib/types.js";
 import { extractIdFromUrn } from "../lib/url-parser.js";
-import { writeFileSync } from "node:fs";
 import { formatInvitation } from "../output/human.js";
 import { formatJson } from "../output/json.js";
 

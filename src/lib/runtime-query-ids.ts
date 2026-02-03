@@ -167,8 +167,7 @@ const BUNDLE_RELATIVE_REGEX = new RegExp(
 const DEBUG_QUERY_IDS =
 	process.env.LI_DEBUG_QUERY_IDS === "1" || process.env.LI_DEBUG_QUERY_IDS === "true";
 const DEBUG_QUERY_IDS_DUMP =
-	process.env.LI_DEBUG_QUERY_IDS_DUMP === "1" ||
-	process.env.LI_DEBUG_QUERY_IDS_DUMP === "true";
+	process.env.LI_DEBUG_QUERY_IDS_DUMP === "1" || process.env.LI_DEBUG_QUERY_IDS_DUMP === "true";
 const DEBUG_QUERY_IDS_DUMP_BUNDLE =
 	process.env.LI_DEBUG_QUERY_IDS_DUMP_BUNDLE === "1" ||
 	process.env.LI_DEBUG_QUERY_IDS_DUMP_BUNDLE === "true";
@@ -335,10 +334,7 @@ function buildQueryIdMapRegex(operation: string): RegExp {
 }
 
 function buildHtmlQueryIdRegex(operation: string): RegExp {
-	return new RegExp(
-		`queryId\\s*[:=]\\s*["'](${operation}\\.[a-zA-Z0-9._-]+)["']`,
-		"i",
-	);
+	return new RegExp(`queryId\\s*[:=]\\s*["'](${operation}\\.[a-zA-Z0-9._-]+)["']`, "i");
 }
 
 function buildHtmlQueryIdUrlRegex(operation: string): RegExp {
@@ -687,9 +683,7 @@ export const runtimeQueryIds = {
 							return;
 						}
 						if (DEBUG_QUERY_IDS) {
-							debugQueryIds(
-								`bundle contains ${extractedQueryId.operation} url=${bundleUrl}`,
-							);
+							debugQueryIds(`bundle contains ${extractedQueryId.operation} url=${bundleUrl}`);
 						}
 						ids[extractedQueryId.operation] = extractedQueryId.queryId;
 						remaining.delete(extractedQueryId.operation);
