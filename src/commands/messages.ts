@@ -164,11 +164,19 @@ export async function listConversations(
 			)
 		: computedVariables;
 	if (shouldUseRestFallback) {
-		const restResult = await listConversationsFromRest(client, start, count);
-		if (options.json) {
-			return formatJson(restResult);
+		try {
+			const restResult = await listConversationsFromRest(client, start, count);
+			if (options.json) {
+				return formatJson(restResult);
+			}
+			return formatHumanConversationsList(restResult);
+		} catch (error) {
+			if (error instanceof LinkedInApiError && error.status >= 500) {
+				debugMessages(`rest_fallback_failed status=${error.status} retrying_graphql=true`);
+			} else {
+				throw error;
+			}
 		}
-		return formatHumanConversationsList(restResult);
 	}
 	debugMessages(`queryId=${queryId} variables=${variables}`);
 	if (Object.keys(snapshotHeaders).length > 0) {
