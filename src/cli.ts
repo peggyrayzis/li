@@ -159,6 +159,7 @@ program
 	.option("--all", "Fetch all connections")
 	.option("--start <number>", "Start offset for pagination", "0")
 	.option("--of <identifier>", "List connections of a specific profile")
+	.option("--fast", "Faster pacing with adaptive slowdown on rate limits")
 	.action(async (options) => {
 		try {
 			const globalOpts = program.opts();
@@ -169,6 +170,7 @@ program
 				count: Number.parseInt(options.count, 10),
 				start: Number.parseInt(options.start, 10),
 				of: options.of,
+				fast: options.fast,
 			});
 			console.log(output);
 		} catch (error) {

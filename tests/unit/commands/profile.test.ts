@@ -241,12 +241,32 @@ describe("profile command", () => {
 		});
 
 		it("propagates 403 API errors", async () => {
-			mockFetch.mockResolvedValueOnce({
-				ok: false,
-				status: 403,
-				statusText: "Forbidden",
-				json: async () => ({}),
-			});
+			mockFetch
+				.mockResolvedValueOnce({
+					ok: true,
+					status: 200,
+					json: async () => PROFILE_LOOKUP_FIXTURE,
+				})
+				.mockResolvedValueOnce({
+					ok: false,
+					status: 403,
+					statusText: "Forbidden",
+					json: async () => ({}),
+				})
+				.mockResolvedValueOnce({
+					ok: true,
+					status: 200,
+					json: async () =>
+						Promise.resolve({
+							miniProfile: {
+								publicIdentifier: "someone-else",
+								firstName: "Other",
+								lastName: "User",
+								occupation: "Test",
+								objectUrn: "urn:li:member:123",
+							},
+						}),
+				});
 
 			await expect(profile(mockCredentials, "restricted-user")).rejects.toThrow(/not authorized/i);
 		});

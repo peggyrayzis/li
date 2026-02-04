@@ -23,6 +23,7 @@ export interface ConnectionsOptions {
 	count?: number;
 	all?: boolean;
 	of?: string;
+	fast?: boolean;
 }
 
 interface ConnectionsResult {
@@ -46,11 +47,20 @@ const FLAGSHIP_SEARCH_PAGE_INSTANCE =
 const FLAGSHIP_TRACK =
 	'{"clientVersion":"0.2.3802","mpVersion":"0.2.3802","osName":"web","timezoneOffset":-5,"timezone":"America/New_York","deviceFormFactor":"DESKTOP","mpName":"web","displayDensity":2,"displayWidth":3024,"displayHeight":1964}';
 const CONNECTIONS_OF_PAGE_SIZE = 10;
+const FAST_DELAY_MIN_MS = 200;
+const FAST_DELAY_MAX_MS = 600;
 const DEBUG_CONNECTIONS =
 	process.env.LI_DEBUG_CONNECTIONS === "1" || process.env.LI_DEBUG_CONNECTIONS === "true";
 const DEBUG_CONNECTIONS_DUMP =
 	process.env.LI_DEBUG_CONNECTIONS_DUMP === "1" ||
 	process.env.LI_DEBUG_CONNECTIONS_DUMP === "true";
+const DISABLE_PROGRESS =
+	process.env.LI_NO_PROGRESS === "1" || process.env.LI_NO_PROGRESS === "true";
+
+type ProgressReporter = {
+	update: (info: { fetched: number; page: number; targetCount: number | null }) => void;
+	done: (finalCount: number) => void;
+};
 
 /**
  * List LinkedIn connections with pagination support.
@@ -63,7 +73,13 @@ export async function connections(
 	credentials: LinkedInCredentials,
 	options: ConnectionsOptions = {},
 ): Promise<string> {
-	const client = new LinkedInClient(credentials);
+	const client = options.fast
+		? new LinkedInClient(credentials, {
+				delayMinMs: FAST_DELAY_MIN_MS,
+				delayMaxMs: FAST_DELAY_MAX_MS,
+				adaptivePacing: true,
+			})
+		: new LinkedInClient(credentials);
 	const start = options.start ?? 0;
 	const requestedCount = options.count ?? 20;
 	const fetchAll = options.all ?? false;
@@ -101,26 +117,41 @@ export async function connections(
 		...(connectionOfId ? { "X-Li-Rsc-Stream": "true" } : {}),
 	};
 
-	const normalizedConnections = await fetchConnectionsFromFlagship(
-		client,
-		requestUrl,
-		headers,
-		effectiveStart,
-		count,
-		buildBody,
-		skip,
-		connectionOfId
-			? (startIndex: number) => {
-					const page = Math.floor(startIndex / CONNECTIONS_OF_PAGE_SIZE) + 1;
-					return {
-						url: buildConnectionsOfRequestUrl(connectionOfId, page),
-						referer: buildConnectionsOfReferer(connectionOfId, page),
-					};
-				}
-			: undefined,
-		connectionOfId ? CONNECTIONS_OF_PAGE_SIZE : undefined,
-		Boolean(connectionOfId),
-	);
+	const showProgress =
+		!options.json && Boolean(process.stderr.isTTY) && !DISABLE_PROGRESS;
+	const progress = showProgress
+		? createProgressReporter({
+				targetCount: count,
+				label: connectionOfId ? "connections-of" : "connections",
+			})
+		: null;
+
+	let normalizedConnections: NormalizedConnection[] = [];
+	try {
+		normalizedConnections = await fetchConnectionsFromFlagship(
+			client,
+			requestUrl,
+			headers,
+			effectiveStart,
+			count,
+			buildBody,
+			skip,
+			connectionOfId
+				? (startIndex: number) => {
+						const page = Math.floor(startIndex / CONNECTIONS_OF_PAGE_SIZE) + 1;
+						return {
+							url: buildConnectionsOfRequestUrl(connectionOfId, page),
+							referer: buildConnectionsOfReferer(connectionOfId, page),
+						};
+					}
+				: undefined,
+			connectionOfId ? CONNECTIONS_OF_PAGE_SIZE : undefined,
+			Boolean(connectionOfId),
+			progress?.update,
+		);
+	} finally {
+		progress?.done(normalizedConnections.length);
+	}
 
 	const result: ConnectionsResult = {
 		connections: normalizedConnections,
@@ -149,6 +180,7 @@ async function fetchConnectionsFromFlagship(
 	buildRequest?: (startIndex: number, pageSize: number) => { url?: string; referer?: string },
 	pageStep?: number,
 	preferSearchParser = false,
+	onProgress?: ProgressReporter["update"],
 ): Promise<NormalizedConnection[]> {
 	const connections: NormalizedConnection[] = [];
 	const seen = new Set<string>();
@@ -163,6 +195,7 @@ async function fetchConnectionsFromFlagship(
 	while (connections.length < targetCount && iterations < maxIterations) {
 		const remaining = targetCount - connections.length;
 		const pageSize = Number.isFinite(remaining) ? Math.max(1, Math.min(50, remaining)) : 50;
+		const pageIndex = iterations + 1;
 		const body = JSON.stringify(buildBody(currentStart, pageSize));
 		const requestOverride = buildRequest?.(currentStart, pageSize);
 		const effectiveUrl = requestOverride?.url ?? requestUrl;
@@ -253,12 +286,78 @@ async function fetchConnectionsFromFlagship(
 			break;
 		}
 
+		onProgress?.({
+			fetched: connections.length,
+			page: pageIndex,
+			targetCount: count,
+		});
+
 		const advanceBy = pageStep && pageStep > 0 ? pageStep : pageConnections.length;
 		currentStart += advanceBy;
 		iterations += 1;
 	}
 
 	return connections;
+}
+
+function createProgressReporter(options: {
+	targetCount: number | null;
+	label: string;
+}): ProgressReporter {
+	const frames = ["|", "/", "-", "\\"];
+	const startTime = Date.now();
+	let frameIndex = 0;
+	let lastLineLength = 0;
+
+	const formatDuration = (ms: number): string => {
+		const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+		const minutes = Math.floor(totalSeconds / 60);
+		const seconds = totalSeconds % 60;
+		return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+	};
+
+	const formatRate = (count: number, elapsedMs: number): string => {
+		if (elapsedMs <= 0) {
+			return "0/min";
+		}
+		const perMinute = (count / elapsedMs) * 60_000;
+		if (perMinute >= 1000) {
+			return `${(perMinute / 1000).toFixed(1)}k/min`;
+		}
+		return `${Math.round(perMinute)}/min`;
+	};
+
+	const writeLine = (line: string) => {
+		const padded = line.length < lastLineLength ? line.padEnd(lastLineLength, " ") : line;
+		lastLineLength = padded.length;
+		process.stderr.write(`\r${padded}`);
+	};
+
+	return {
+		update: ({ fetched, page, targetCount }) => {
+			const elapsed = Date.now() - startTime;
+			const frame = frames[frameIndex % frames.length];
+			frameIndex += 1;
+			const target =
+				targetCount && Number.isFinite(targetCount) ? `/${targetCount}` : "";
+			writeLine(
+				`${frame} fetching ${options.label} ${fetched}${target} · page ${page} · ${formatRate(
+					fetched,
+					elapsed,
+				)} · ${formatDuration(elapsed)}`,
+			);
+		},
+		done: (finalCount: number) => {
+			const elapsed = Date.now() - startTime;
+			writeLine(
+				`fetched ${options.label} ${finalCount} · ${formatRate(
+					finalCount,
+					elapsed,
+				)} · ${formatDuration(elapsed)}`,
+			);
+			process.stderr.write("\n");
+		},
+	};
 }
 
 function buildConnectionsPaginationBody(startIndex: number, _pageSize: number): Record<string, unknown> {

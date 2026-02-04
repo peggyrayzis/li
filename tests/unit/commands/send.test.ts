@@ -5,11 +5,15 @@ import type { LinkedInCredentials } from "../../../src/lib/auth.js";
 const mockRequest = vi.fn();
 
 // Mock the client module with a class
-vi.mock("../../../src/lib/client.js", () => ({
-	LinkedInClient: class MockLinkedInClient {
-		request = mockRequest;
-	},
-}));
+vi.mock("../../../src/lib/client.js", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../../../src/lib/client.js")>();
+	return {
+		...actual,
+		LinkedInClient: class MockLinkedInClient {
+			request = mockRequest;
+		},
+	};
+});
 
 import { send } from "../../../src/commands/send.js";
 import { buildCookieHeader } from "../../helpers/cookies.js";

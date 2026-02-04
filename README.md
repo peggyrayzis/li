@@ -70,6 +70,7 @@ li connections                  # List your connections (default: 20)
 li connections -n 50            # Show 50 connections
 li connections -n 150           # Paginate to return more than 50
 li connections --all            # Fetch all connections (paginated)
+li connections --all --fast     # Faster pacing with adaptive slowdown on rate limits
 li connections --start 20       # Pagination offset
 li connections --json           # Output as JSON
 li connections --of peggyrayzis # List a connection's connections (total unknown)

@@ -49,14 +49,14 @@ function parseDelayEnv(value: string | undefined): number | null {
 	return parsed;
 }
 
-function getRequestDelay(): number {
-	const minEnv = parseDelayEnv(process.env.LI_REQUEST_DELAY_MIN_MS);
-	const maxEnv = parseDelayEnv(process.env.LI_REQUEST_DELAY_MAX_MS);
-	const min = minEnv ?? 500;
-	const max = maxEnv ?? 1200;
-	const safeMax = max >= min ? max : min;
-	const range = safeMax - min;
-	return min + Math.floor(Math.random() * (range + 1));
+function normalizeDelay(value: number | undefined): number | null {
+	if (value === undefined) {
+		return null;
+	}
+	if (!Number.isFinite(value) || value < 0) {
+		return null;
+	}
+	return Math.round(value);
 }
 
 /**
@@ -68,6 +68,12 @@ const INITIAL_BACKOFF_MS = 5000;
  * Maximum number of retries for 429 responses.
  */
 const MAX_RETRIES = 5;
+
+const ADAPTIVE_INCREASE_FACTOR = 1.5;
+const ADAPTIVE_BLOCK_FACTOR = 2;
+const ADAPTIVE_DECAY_FACTOR = 0.9;
+const ADAPTIVE_MIN_CAP_MS = 5000;
+const ADAPTIVE_MAX_CAP_MS = 8000;
 
 /**
  * Maps HTTP status codes to actionable error messages.
@@ -104,6 +110,12 @@ export interface RequestOptions {
 	headers?: Record<string, string>;
 }
 
+export interface LinkedInClientOptions {
+	delayMinMs?: number;
+	delayMaxMs?: number;
+	adaptivePacing?: boolean;
+}
+
 /**
  * LinkedIn Voyager API client.
  *
@@ -118,12 +130,30 @@ export class LinkedInClient {
 	private readonly baseUrl: string;
 	private readonly headers: Record<string, string>;
 	private lastRequestTime = 0;
+	private delayMinMs: number;
+	private delayMaxMs: number;
+	private readonly delayMinBaseline: number;
+	private readonly delayMaxBaseline: number;
+	private readonly adaptivePacing: boolean;
 
-	constructor(credentials: LinkedInCredentials) {
+	constructor(credentials: LinkedInCredentials, options: LinkedInClientOptions = {}) {
 		this.credentials = credentials;
 		this.baseUrl = endpoints.baseUrl;
 		// Build headers once per client instance to keep page instance consistent
 		this.headers = buildHeaders(this.credentials);
+
+		const minOverride = normalizeDelay(options.delayMinMs);
+		const maxOverride = normalizeDelay(options.delayMaxMs);
+		const minEnv = parseDelayEnv(process.env.LI_REQUEST_DELAY_MIN_MS);
+		const maxEnv = parseDelayEnv(process.env.LI_REQUEST_DELAY_MAX_MS);
+		const min = minOverride ?? minEnv ?? 500;
+		const max = maxOverride ?? maxEnv ?? 1200;
+		const safeMax = max >= min ? max : min;
+		this.delayMinMs = min;
+		this.delayMaxMs = safeMax;
+		this.delayMinBaseline = min;
+		this.delayMaxBaseline = safeMax;
+		this.adaptivePacing = options.adaptivePacing ?? false;
 	}
 
 	getCredentials(): LinkedInCredentials {
@@ -194,10 +224,10 @@ export class LinkedInClient {
 	 * Uses manual redirect handling to detect session invalidation.
 	 */
 	private async fetchWithRateLimit(url: string, options: RequestInit): Promise<Response> {
-		// Always add random delay before requests (2-5 seconds) to evade detection
-		// This mimics human browsing behavior
+		// Always add random delay before requests to evade detection.
+		// Uses configurable min/max delays to mimic human browsing behavior.
 		if (this.lastRequestTime > 0) {
-			const delayMs = getRequestDelay();
+			const delayMs = this.getRequestDelay();
 			debugHttp(`delay=${delayMs}ms method=${options.method ?? "GET"} url=${url}`);
 			await sleep(delayMs);
 		}
@@ -281,6 +311,7 @@ export class LinkedInClient {
 
 		// Handle 429 with exponential backoff
 		if (response.status === 429) {
+			this.recordRateLimit();
 			if (attempt >= MAX_RETRIES) {
 				throw new LinkedInApiError(429, getErrorMessage(429));
 			}
@@ -292,6 +323,9 @@ export class LinkedInClient {
 
 		// Handle other errors
 		if (!response.ok) {
+			if (response.status === 999) {
+				this.recordBlock();
+			}
 			let details: string | undefined;
 			try {
 				const body = (await response.json()) as { message?: string; error?: string };
@@ -310,6 +344,53 @@ export class LinkedInClient {
 			throw new LinkedInApiError(response.status, getErrorMessage(response.status, details));
 		}
 
+		this.recordSuccess();
 		return response;
+	}
+
+	private getRequestDelay(): number {
+		const range = this.delayMaxMs - this.delayMinMs;
+		return this.delayMinMs + Math.floor(Math.random() * (range + 1));
+	}
+
+	private recordRateLimit(): void {
+		this.increaseDelay(ADAPTIVE_INCREASE_FACTOR);
+	}
+
+	private recordBlock(): void {
+		this.increaseDelay(ADAPTIVE_BLOCK_FACTOR);
+	}
+
+	private recordSuccess(): void {
+		if (!this.adaptivePacing) {
+			return;
+		}
+		if (this.delayMinMs <= this.delayMinBaseline && this.delayMaxMs <= this.delayMaxBaseline) {
+			return;
+		}
+		this.delayMinMs = Math.max(
+			this.delayMinBaseline,
+			Math.round(this.delayMinMs * ADAPTIVE_DECAY_FACTOR),
+		);
+		this.delayMaxMs = Math.max(
+			this.delayMaxBaseline,
+			Math.round(this.delayMaxMs * ADAPTIVE_DECAY_FACTOR),
+		);
+		if (this.delayMaxMs < this.delayMinMs) {
+			this.delayMaxMs = this.delayMinMs;
+		}
+	}
+
+	private increaseDelay(factor: number): void {
+		if (!this.adaptivePacing) {
+			return;
+		}
+		const nextMin = Math.min(ADAPTIVE_MIN_CAP_MS, Math.round(this.delayMinMs * factor));
+		const nextMax = Math.min(ADAPTIVE_MAX_CAP_MS, Math.round(this.delayMaxMs * factor));
+		this.delayMinMs = Math.max(this.delayMinBaseline, nextMin);
+		this.delayMaxMs = Math.max(this.delayMaxBaseline, nextMax);
+		if (this.delayMaxMs < this.delayMinMs) {
+			this.delayMaxMs = this.delayMinMs;
+		}
 	}
 }

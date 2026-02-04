@@ -13,8 +13,10 @@ import { resolveRecipient } from "../../src/lib/recipient.js";
 import { buildCookieHeader } from "../helpers/cookies.js";
 
 // Mock the LinkedInClient
-vi.mock("../../src/lib/client.js", () => {
+vi.mock("../../src/lib/client.js", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../../src/lib/client.js")>();
 	return {
+		...actual,
 		LinkedInClient: vi.fn(),
 	};
 });
