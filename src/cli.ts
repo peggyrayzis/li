@@ -28,7 +28,7 @@ program
 	.option("--jsessionid <token>", "LinkedIn JSESSIONID cookie token")
 	.option(
 		"--cookie-source <source>",
-		"Cookie source: chrome, safari, or comma-separated (e.g., chrome,safari). Default: auto",
+		"Cookie source: chrome, safari, none, or comma-separated (e.g., chrome,safari). Default: auto",
 		"auto",
 	);
 

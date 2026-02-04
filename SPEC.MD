@@ -98,7 +98,7 @@ li query-ids --refresh --auto
 li query-ids --refresh --har ~/Downloads/www.linkedin.com.har
 
 Debug flags:
-FlagDescriptionLI_DEBUG_HTTPLog request status + URLsLI_DEBUG_MESSAGESLog messaging queryId + variablesLI_DEBUG_MESSAGES_RESPONSELog response previews (may include PII)LI_DEBUG_QUERY_IDSLog queryId discovery progressLI_DEBUG_DUMPDump HTML/bundles/settings payloads to /tmp (advanced)
+FlagDescriptionLI_DEBUG_HTTPLog request status + URLsLI_DEBUG_MESSAGESLog messaging queryId + variablesLI_DEBUG_MESSAGES_RESPONSELog response previews (may include PII)LI_DEBUG_QUERY_IDSLog queryId discovery progress
 
 Connections & Network ⭐ Priority
 Connections list uses flagship RSC pagination (no GraphQL, no queryId rotation).

@@ -37,6 +37,14 @@ li check    # Validates your session
 li whoami   # Shows your profile info
 ```
 
+## Security & Privacy Notes
+
+- `li` uses your LinkedIn session cookies. Treat them like passwords and never share them.
+- By default, the CLI will try to read cookies from your local browser profiles (`--cookie-source auto`).
+  If you do not want automatic browser extraction, run with `--cookie-source none` and provide cookies
+  via environment variables instead.
+- Avoid sharing HAR files or debug logs; they often contain cookies, headers, and personal data.
+
 ## Commands
 
 Note: v0.1 is read-only. Write commands (connect, send, invites accept) are disabled and will return an error. These are planned for v0.2.
@@ -131,9 +139,6 @@ LI_DEBUG_MESSAGES_RESPONSE=1
 
 # Query ID discovery troubleshooting
 LI_DEBUG_QUERY_IDS=1
-
-# Dump HTML/bundles/settings payloads to /tmp (advanced)
-LI_DEBUG_DUMP=1
 ```
 
 ## Output Modes

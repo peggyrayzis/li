@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import type { LinkedInClient } from "./client.js";
 import { buildWebHeaders } from "./headers.js";
@@ -21,7 +22,20 @@ export interface QueryIdSnapshotInfo {
 }
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
-const DEFAULT_CACHE_PATH = path.join(process.cwd(), ".li", "query-ids.json");
+
+function getDefaultCacheDir(): string {
+	if (process.platform === "win32") {
+		const base = process.env.LOCALAPPDATA ?? process.env.APPDATA ?? os.homedir();
+		return path.join(base, "li");
+	}
+	if (process.platform === "darwin") {
+		return path.join(os.homedir(), "Library", "Caches", "li");
+	}
+	const base = process.env.XDG_CACHE_HOME ?? path.join(os.homedir(), ".cache");
+	return path.join(base, "li");
+}
+
+const DEFAULT_CACHE_PATH = path.join(getDefaultCacheDir(), "query-ids.json");
 
 function getCachePath(): string {
 	return process.env.LINKEDIN_QUERY_ID_CACHE_PATH || DEFAULT_CACHE_PATH;
@@ -30,7 +44,15 @@ function getCachePath(): string {
 function ensureCacheDir(cachePath: string): void {
 	const dir = path.dirname(cachePath);
 	if (!existsSync(dir)) {
-		mkdirSync(dir, { recursive: true });
+		mkdirSync(dir, { recursive: true, mode: 0o700 });
+	}
+}
+
+function lockDownFile(pathname: string): void {
+	try {
+		chmodSync(pathname, 0o600);
+	} catch {
+		// Ignore chmod failures (e.g., unsupported filesystem).
 	}
 }
 
@@ -137,7 +159,11 @@ async function readSnapshot(cachePath: string): Promise<QueryIdSnapshot | null> 
 
 async function writeSnapshot(cachePath: string, snapshot: QueryIdSnapshot): Promise<void> {
 	ensureCacheDir(cachePath);
-	writeFileSync(cachePath, `${JSON.stringify(snapshot, null, 2)}\n`, "utf8");
+	writeFileSync(cachePath, `${JSON.stringify(snapshot, null, 2)}\n`, {
+		encoding: "utf8",
+		mode: 0o600,
+	});
+	lockDownFile(cachePath);
 }
 
 const LINKEDIN_ENTRYPOINTS = [
@@ -166,13 +192,6 @@ const BUNDLE_RELATIVE_REGEX = new RegExp(
 );
 const DEBUG_QUERY_IDS =
 	process.env.LI_DEBUG_QUERY_IDS === "1" || process.env.LI_DEBUG_QUERY_IDS === "true";
-const DEBUG_QUERY_IDS_DUMP =
-	process.env.LI_DEBUG_QUERY_IDS_DUMP === "1" || process.env.LI_DEBUG_QUERY_IDS_DUMP === "true";
-const DEBUG_QUERY_IDS_DUMP_BUNDLE =
-	process.env.LI_DEBUG_QUERY_IDS_DUMP_BUNDLE === "1" ||
-	process.env.LI_DEBUG_QUERY_IDS_DUMP_BUNDLE === "true";
-const DEBUG_DUMP = process.env.LI_DEBUG_DUMP === "1" || process.env.LI_DEBUG_DUMP === "true";
-let dumpedBundle = false;
 
 function debugQueryIds(message: string): void {
 	if (!DEBUG_QUERY_IDS) {
@@ -410,13 +429,6 @@ async function discoverBundles(
 				`entrypoint contentType=${response.contentType} bytes=${response.text.length} url=${url}`,
 			);
 			const html = response.text;
-			if (DEBUG_QUERY_IDS_DUMP || DEBUG_DUMP) {
-				try {
-					writeFileSync("/tmp/li-messaging.html", html, "utf8");
-				} catch {
-					// Ignore dump failures.
-				}
-			}
 			const genericFromHtml = extractQueryIdFromText(html, operations);
 			if (genericFromHtml) {
 				debugQueryIds(`entrypoint direct_query_id=${genericFromHtml.queryId} url=${url}`);
@@ -463,13 +475,6 @@ async function discoverBundles(
 				}
 			}
 			const extracted = extractBundleUrlsFromHtml(response.text);
-			if ((DEBUG_QUERY_IDS_DUMP || DEBUG_DUMP) && extracted.length > 0) {
-				try {
-					writeFileSync("/tmp/li-messaging-bundles.txt", extracted.join("\n"), "utf8");
-				} catch {
-					// Ignore dump failures.
-				}
-			}
 			for (const bundleUrl of extracted) {
 				bundles.add(bundleUrl);
 			}
@@ -495,14 +500,6 @@ async function fetchBundleText(client: LinkedInClient, url: string): Promise<str
 		throw new Error(`Failed to fetch bundle ${url}`);
 	}
 	debugQueryIds(`bundle ok url=${url}`);
-	if ((DEBUG_QUERY_IDS_DUMP_BUNDLE || DEBUG_DUMP) && !dumpedBundle) {
-		try {
-			writeFileSync("/tmp/li-messaging-bundle.js", response.text, "utf8");
-			dumpedBundle = true;
-		} catch {
-			// Ignore dump failures.
-		}
-	}
 	return response.text;
 }
 
@@ -545,13 +542,6 @@ async function fetchQueryIdsFromSettings(
 			},
 		);
 		const text = await response.text();
-		if (DEBUG_QUERY_IDS_DUMP || DEBUG_DUMP) {
-			try {
-				writeFileSync("/tmp/li-messaging-settings.json", text, "utf8");
-			} catch {
-				// Ignore dump failures.
-			}
-		}
 		const extracted = extractQueryIdFromText(text, operations);
 		if (extracted) {
 			return { [extracted.operation]: extracted.queryId };

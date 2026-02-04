@@ -18,9 +18,6 @@ import { parseLinkedInUrl } from "./url-parser.js";
 
 const DEBUG_RECIPIENT =
 	process.env.LI_DEBUG_RECIPIENT === "1" || process.env.LI_DEBUG_RECIPIENT === "true";
-const DEBUG_RECIPIENT_DUMP =
-	process.env.LI_DEBUG_RECIPIENT_DUMP === "1" ||
-	process.env.LI_DEBUG_RECIPIENT_DUMP === "true";
 const RECIPIENT_CACHE_PATH =
 	process.env.LI_RECIPIENT_CACHE_PATH ??
 	path.join(os.tmpdir(), "li-recipient-cache.json");
@@ -323,18 +320,6 @@ async function lookupProfileByHtml(
 			return null;
 		}
 		const html = await response.text();
-		if (DEBUG_RECIPIENT_DUMP) {
-			const dumpPath = `/tmp/li-profile-html-${username}.html`;
-			try {
-				await import("node:fs").then(({ writeFileSync }) =>
-					writeFileSync(dumpPath, html, "utf8"),
-				);
-				debugRecipient(`profileHtml dump=${dumpPath}`);
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				debugRecipient(`profileHtml dump_error=${message}`);
-			}
-		}
 		const decoded = html.replace(/\\u002F/g, "/");
 		const entityDecoded = decoded
 			.replace(/&quot;|&#34;|&#x22;/g, '"')

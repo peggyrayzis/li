@@ -52,9 +52,6 @@ const FAST_DELAY_MIN_MS = 200;
 const FAST_DELAY_MAX_MS = 600;
 const DEBUG_CONNECTIONS =
 	process.env.LI_DEBUG_CONNECTIONS === "1" || process.env.LI_DEBUG_CONNECTIONS === "true";
-const DEBUG_CONNECTIONS_DUMP =
-	process.env.LI_DEBUG_CONNECTIONS_DUMP === "1" ||
-	process.env.LI_DEBUG_CONNECTIONS_DUMP === "true";
 const DISABLE_PROGRESS =
 	process.env.LI_NO_PROGRESS === "1" || process.env.LI_NO_PROGRESS === "true";
 const PROFILE_ID_PATTERN = /^ACo[A-Za-z0-9_-]+$/;
@@ -228,18 +225,6 @@ async function fetchConnectionsFromFlagship(
 
 		const buffer = await response.arrayBuffer();
 		const payload = new TextDecoder("utf-8").decode(buffer);
-		if (DEBUG_CONNECTIONS_DUMP) {
-			const dumpPath = `/tmp/li-connections-of-${currentStart}.txt`;
-			try {
-				await import("node:fs").then(({ writeFileSync }) =>
-					writeFileSync(dumpPath, payload, "utf8"),
-				);
-				process.stderr.write(`[li][connections] dump=${dumpPath}\n`);
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				process.stderr.write(`[li][connections] dump_error=${message}\n`);
-			}
-		}
 		if (DEBUG_CONNECTIONS) {
 			const preview = payload.length > 2000 ? `${payload.slice(0, 2000)}…` : payload;
 			process.stderr.write(

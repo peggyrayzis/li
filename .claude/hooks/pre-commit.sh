@@ -73,6 +73,14 @@ if [ -n "$ENV_FILES" ]; then
   FOUND_SECRETS=1
 fi
 
+# Check for HAR files being committed
+HAR_FILES=$(echo "$STAGED_FILES" | grep -E '\.har(\.json)?$' || true)
+if [ -n "$HAR_FILES" ]; then
+  echo "❌ BLOCKED: Attempting to commit HAR capture file(s):"
+  echo "$HAR_FILES" | sed 's/^/   /'
+  FOUND_SECRETS=1
+fi
+
 # Check for hardcoded localhost cookies in source files
 COOKIE_IN_SOURCE=$(git diff --cached --name-only -- '*.ts' '*.js' | xargs -I{} git diff --cached -- {} 2>/dev/null | grep -E 'li_at|JSESSIONID' | grep -v 'process\.env' | grep -v '//' || true)
 if [ -n "$COOKIE_IN_SOURCE" ]; then
