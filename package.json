@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "The LinkedIn CLI for agents",
   "type": "module",
+  "packageManager": "pnpm@9.1.1",
   "bin": {
     "li": "dist/cli.js"
   },
