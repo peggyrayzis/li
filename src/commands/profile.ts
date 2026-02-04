@@ -100,13 +100,48 @@ export async function profile(
 	}
 
 	// Parse the response
-	const normalizedProfile = parseProfile(rawData);
+	let normalizedProfile = parseProfile(rawData);
+
+	const hasIdentity = Boolean(
+		normalizedProfile.username || normalizedProfile.firstName || normalizedProfile.lastName,
+	);
+	if (!hasIdentity && resolved.username) {
+		try {
+			const profileEndpoint = endpoints.endpoints.profile.replace(
+				"{username}",
+				encodeURIComponent(resolved.username),
+			);
+			const fallbackResponse = await client.request(profileEndpoint);
+			const fallbackData = (await fallbackResponse.json()) as Record<string, unknown>;
+			const fallbackProfile = parseProfile(fallbackData);
+			normalizedProfile = {
+				...fallbackProfile,
+				urn: fallbackProfile.urn || normalizedProfile.urn || resolved.urn,
+				username: fallbackProfile.username || normalizedProfile.username,
+				firstName: fallbackProfile.firstName || normalizedProfile.firstName,
+				lastName: fallbackProfile.lastName || normalizedProfile.lastName,
+				headline: fallbackProfile.headline || normalizedProfile.headline,
+				location: fallbackProfile.location || normalizedProfile.location,
+				...(fallbackProfile.industry || normalizedProfile.industry
+					? { industry: fallbackProfile.industry || normalizedProfile.industry }
+					: {}),
+				...(fallbackProfile.summary || normalizedProfile.summary
+					? { summary: fallbackProfile.summary || normalizedProfile.summary }
+					: {}),
+			};
+		} catch {
+			// Ignore fallback errors and use the original profile data.
+		}
+	}
+
 	const normalizedUsername = normalizedProfile.username || resolved.username;
+	const normalizedUrn = normalizedProfile.urn || resolved.urn;
 
 	// Add profile URL for display
 	const profileWithUrl = {
 		...normalizedProfile,
 		username: normalizedUsername,
+		urn: normalizedUrn,
 		profileUrl: `${LINKEDIN_PROFILE_BASE_URL}${normalizedUsername}`,
 	};
 
