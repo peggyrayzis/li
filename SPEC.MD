@@ -108,6 +108,7 @@ li connections -n 150                    # Paginate to return more than 50
 li connections --all                     # Full list (paginated until exhausted)
 li connections --json                    # Connection data as JSON
 li connections --of <identifier>         # Connection-of search (total unknown)
+li connections --of <identifier> --network 1st,2nd,3rd # Filter connection-of by degree (default: all)
 
 # Invitations (read-only)
 li invites                               # Pending connection invitations
@@ -124,7 +125,7 @@ Flagship RSC pagination returns up to 50 connections per request and does not ex
 500 connections = ~10 requests
 30K connections (LinkedIn max) = ~600 requests
 Network flags:
-FlagDescription-nNumber of results (default: 20)--allPaginate through all results (until exhausted)--ofList a connection's connections (username, URL, or URN)--fastFaster pacing with adaptive slowdown on rate limits--confirmRequired for bulk operations like --accept-all
+FlagDescription-nNumber of results (default: 20)--allPaginate through all results (until exhausted)--ofList a connection's connections (username, URL, or URN)--networkFilter connection degrees for --of (1st,2nd,3rd)--fastFaster pacing with adaptive slowdown on rate limits--confirmRequired for bulk operations like --accept-all
 What's NOT in v0.1 (deferred to v0.2):
 
 li post — posting (stable endpoint, deferred to cut scope)

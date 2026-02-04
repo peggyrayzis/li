@@ -25,6 +25,7 @@ export interface ConnectionsOptions {
 	of?: string;
 	fast?: boolean;
 	noProgress?: boolean;
+	network?: NetworkDegree[];
 }
 
 interface ConnectionsResult {
@@ -54,11 +55,19 @@ const FAST_DELAY_MAX_MS = 600;
 const DEBUG_CONNECTIONS =
 	process.env.LI_DEBUG_CONNECTIONS === "1" || process.env.LI_DEBUG_CONNECTIONS === "true";
 const PROFILE_ID_PATTERN = /^ACo[A-Za-z0-9_-]+$/;
+const DEFAULT_NETWORK_DEGREES: NetworkDegree[] = ["1st", "2nd", "3rd"];
+const NETWORK_FILTERS: Record<NetworkDegree, string> = {
+	"1st": "F",
+	"2nd": "S",
+	"3rd": "O",
+};
 
 type ProgressReporter = {
 	update: (info: { fetched: number; page: number; targetCount: number | null }) => void;
 	done: (finalCount: number) => void;
 };
+
+type NetworkDegree = "1st" | "2nd" | "3rd";
 
 /**
  * List LinkedIn connections with pagination support.
@@ -92,15 +101,23 @@ export async function connections(
 			`Invalid profile id resolved for --of (${connectionOfId}). Try again or pass a profile URL/URN.`,
 		);
 	}
+	const networkDegrees = connectionOfId
+		? options.network && options.network.length > 0
+			? options.network
+			: DEFAULT_NETWORK_DEGREES
+		: undefined;
+	const networkFilters = networkDegrees
+		? networkDegrees.map((degree) => NETWORK_FILTERS[degree])
+		: undefined;
 	const referer = connectionOfId
-		? buildConnectionsOfReferer(connectionOfId, 1)
+		? buildConnectionsOfReferer(connectionOfId, 1, networkFilters)
 		: FLAGSHIP_CONNECTIONS_REFERER;
 	const requestUrl = connectionOfId
-		? buildConnectionsOfRequestUrl(connectionOfId, 1)
+		? buildConnectionsOfRequestUrl(connectionOfId, 1, networkFilters)
 		: FLAGSHIP_CONNECTIONS_URL;
 	const buildBody = connectionOf
 		? (startIndex: number, _pageSize: number) =>
-				buildConnectionsOfSearchBody(startIndex, connectionOfId ?? "")
+				buildConnectionsOfSearchBody(startIndex, connectionOfId ?? "", networkFilters)
 		: buildConnectionsPaginationBody;
 	const effectiveStart =
 		connectionOfId && start > 0
@@ -142,8 +159,8 @@ export async function connections(
 				? (startIndex: number) => {
 						const page = Math.floor(startIndex / CONNECTIONS_OF_PAGE_SIZE) + 1;
 						return {
-							url: buildConnectionsOfRequestUrl(connectionOfId, page),
-							referer: buildConnectionsOfReferer(connectionOfId, page),
+							url: buildConnectionsOfRequestUrl(connectionOfId, page, networkFilters),
+							referer: buildConnectionsOfReferer(connectionOfId, page, networkFilters),
 						};
 					}
 				: undefined,
@@ -438,39 +455,63 @@ function buildConnectionsPaginationBody(
 	};
 }
 
-function buildConnectionsOfQuery(connectionOfId: string, page = 1): URLSearchParams {
+function buildConnectionsOfQuery(
+	connectionOfId: string,
+	page = 1,
+	networkFilters?: string[],
+): URLSearchParams {
 	const params = new URLSearchParams({
 		origin: CONNECTIONS_OF_ORIGIN,
 		connectionOf: JSON.stringify(connectionOfId),
 		spellCorrectionEnabled: "true",
 	});
+	if (networkFilters && networkFilters.length > 0) {
+		params.set("network", JSON.stringify(networkFilters));
+	}
 	if (page > 1) {
 		params.set("page", String(page));
 	}
 	return params;
 }
 
-function buildConnectionsOfRequestUrl(connectionOfId: string, page = 1): string {
-	const params = buildConnectionsOfQuery(connectionOfId, page);
+function buildConnectionsOfRequestUrl(
+	connectionOfId: string,
+	page = 1,
+	networkFilters?: string[],
+): string {
+	const params = buildConnectionsOfQuery(connectionOfId, page, networkFilters);
 	return `${FLAGSHIP_CONNECTIONS_OF_URL}?${params.toString()}`;
 }
 
-function buildConnectionsOfReferer(connectionOfId: string, page = 1): string {
-	const params = buildConnectionsOfQuery(connectionOfId, page);
+function buildConnectionsOfReferer(
+	connectionOfId: string,
+	page = 1,
+	networkFilters?: string[],
+): string {
+	const params = buildConnectionsOfQuery(connectionOfId, page, networkFilters);
 	return `https://www.linkedin.com/search/results/people/?${params.toString()}`;
 }
 
-function buildConnectionsOfSearchPath(connectionOfId: string, page = 1): string {
-	const params = buildConnectionsOfQuery(connectionOfId, page);
+function buildConnectionsOfSearchPath(
+	connectionOfId: string,
+	page = 1,
+	networkFilters?: string[],
+): string {
+	const params = buildConnectionsOfQuery(connectionOfId, page, networkFilters);
 	return `/search/results/people/?${params.toString()}`;
 }
 
 function buildConnectionsOfSearchBody(
 	startIndex: number,
 	connectionOfId: string,
+	networkFilters?: string[],
 ): Record<string, unknown> {
 	const page = Math.floor(startIndex / CONNECTIONS_OF_PAGE_SIZE) + 1;
 	const pageKey = `SearchResultsauto-binding-${page}`;
+	const networkFilter =
+		networkFilters && networkFilters.length > 0
+			? { filterKey: "network", filterList: networkFilters }
+			: { filterKey: "network" };
 
 	return {
 		$type: "proto.sdui.actions.core.NavigateToScreen",
@@ -508,7 +549,7 @@ function buildConnectionsOfSearchBody(
 			},
 			url: "",
 		},
-		url: buildConnectionsOfSearchPath(connectionOfId, page),
+		url: buildConnectionsOfSearchPath(connectionOfId, page, networkFilters),
 		inheritActor: false,
 		colorScheme: "ColorScheme_UNKNOWN",
 		disableScreenGutters: false,
@@ -520,7 +561,7 @@ function buildConnectionsOfSearchBody(
 		requestedArguments: {
 			payload: {
 				origin: CONNECTIONS_OF_ORIGIN,
-				network: [{ filterKey: "network" }],
+				network: [networkFilter],
 				geoUrn: [{ filterKey: "geoUrn" }],
 				activelyHiringForJobTitles: [{ filterKey: "-100" }],
 				companyHQBingGeo: [{ filterKey: "companyHQBingGeo" }],

@@ -137,6 +137,16 @@ describe("connections command", () => {
 					body: expect.stringContaining('"filterItemSingle":"ACoTARGET"'),
 				}),
 			);
+			expect(mockFetch).toHaveBeenCalledWith(
+				expect.stringContaining("network=%5B%22F%22%2C%22S%22%2C%22O%22%5D"),
+				expect.any(Object),
+			);
+			expect(mockFetch).toHaveBeenCalledWith(
+				expect.any(String),
+				expect.objectContaining({
+					body: expect.stringContaining('"filterList":["F","S","O"]'),
+				}),
+			);
 		});
 
 		it("returns paging.total as null for connectionOf JSON output", async () => {

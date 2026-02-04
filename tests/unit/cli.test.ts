@@ -300,6 +300,7 @@ describe("CLI", () => {
 				all: undefined,
 				count: 20,
 				fast: undefined,
+				network: undefined,
 				noProgress: false,
 				of: undefined,
 				start: 0,
@@ -325,6 +326,7 @@ describe("CLI", () => {
 				all: undefined,
 				count: 50,
 				fast: undefined,
+				network: undefined,
 				noProgress: false,
 				of: undefined,
 				start: 100,
@@ -350,6 +352,41 @@ describe("CLI", () => {
 				all: undefined,
 				count: 20,
 				fast: undefined,
+				network: undefined,
+				noProgress: false,
+				start: 0,
+				of: "peggyrayzis",
+			});
+		});
+
+		it("passes --network degrees through to connections", async () => {
+			mockConnections.mockResolvedValue("Connections list");
+			vi.resetModules();
+
+			const originalArgv = process.argv;
+			process.argv = [
+				"node",
+				"li",
+				"connections",
+				"--of",
+				"peggyrayzis",
+				"--network",
+				"1st,3rd",
+			];
+
+			try {
+				await import("../../src/cli.js");
+				await new Promise((r) => setTimeout(r, 10));
+			} finally {
+				process.argv = originalArgv;
+			}
+
+			expect(mockConnections).toHaveBeenCalledWith(mockCredentials, {
+				json: undefined,
+				all: undefined,
+				count: 20,
+				fast: undefined,
+				network: ["1st", "3rd"],
 				noProgress: false,
 				start: 0,
 				of: "peggyrayzis",

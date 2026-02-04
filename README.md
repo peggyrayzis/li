@@ -88,6 +88,7 @@ li connections --all --fast     # Faster pacing with adaptive slowdown on rate l
 li connections --start 20       # Pagination offset
 li connections --json           # Output as JSON
 li connections --of peggyrayzis # List a connection's connections (total unknown)
+li connections --of peggyrayzis --network 1st,2nd,3rd # Include all degrees for connections-of
 ```
 
 ### Invitations

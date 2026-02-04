@@ -221,6 +221,39 @@ function parseCookieSource(source?: string): BrowserSource[] | undefined {
 	return valid.length > 0 ? valid : undefined;
 }
 
+type NetworkDegree = "1st" | "2nd" | "3rd";
+
+function parseNetworkDegrees(input?: string): NetworkDegree[] | undefined {
+	if (!input) {
+		return undefined;
+	}
+	const degrees: NetworkDegree[] = [];
+	const tokens = input
+		.split(",")
+		.map((value) => value.trim().toLowerCase())
+		.filter(Boolean);
+
+	for (const token of tokens) {
+		if (token === "1st") {
+			degrees.push("1st");
+			continue;
+		}
+		if (token === "2nd") {
+			degrees.push("2nd");
+			continue;
+		}
+		if (token === "3rd") {
+			degrees.push("3rd");
+			continue;
+		}
+		throw new Error(
+			`Invalid --network value: ${token}. Use comma-separated: 1st,2nd,3rd`,
+		);
+	}
+
+	return Array.from(new Set(degrees));
+}
+
 /**
  * Get credentials from CLI options, environment, or browser cookies.
  * Follows Bird's pattern: CLI args > env vars > browser cookies (auto-fallback).
@@ -312,6 +345,7 @@ program
 	.option("--start <number>", "Start offset for pagination", "0")
 	.option("--of <identifier>", "List connections of a specific profile")
 	.option("--fast", "Faster pacing with adaptive slowdown on rate limits")
+	.option("--network <levels>", "Connection degrees for --of (1st,2nd,3rd). Default: all.")
 	.action(async (options) => {
 		try {
 			const globalOpts = program.opts();
@@ -323,6 +357,7 @@ program
 				start: Number.parseInt(options.start, 10),
 				of: options.of,
 				fast: options.fast,
+				network: parseNetworkDegrees(options.network),
 				noProgress: globalOpts.progress === false,
 			});
 			console.log(output);
