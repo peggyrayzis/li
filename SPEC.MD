@@ -271,7 +271,7 @@ json{
   }]
 }
 Connection & Network Endpoints
-CommandMethodEndpointNotesconnectionsPOSTflagship-web/rsc-action/actions/pagination?sduiid=com.linkedin.sdui.pagers.mynetwork.connectionsListRSC pagination; max 50 per request; total not exposed.connections --ofPOSTflagship-web/rsc-action/actions/pagination?sduiid=com.linkedin.sdui.pagers.search.resultsRSC search pagination with connectionOf filter; total not exposed.whoami (counts)GET/meDisplay "500+" when exact count unavailable.profileGET/identity/dash/profiles?q=memberIdentity&memberIdentity={username}Resolve profile URN + fetch dash profile (403 falls back to /me for self).invitations (list)POSTflagship-web/rsc-action/actions/pagination?sduiid=com.linkedin.sdui.pagers.mynetwork.invitationsListRSC pagination for pending invites.
+CommandMethodEndpointNotesconnectionsPOSTflagship-web/rsc-action/actions/pagination?sduiid=com.linkedin.sdui.pagers.mynetwork.connectionsListRSC pagination; max 50 per request; total not exposed.connections --ofPOSTflagship-web/search/results/people/RSC search pagination with connectionOf filter; total not exposed.whoami (counts)GET/meDisplay "500+" when exact count unavailable.profileGET/identity/dash/profiles?q=memberIdentity&memberIdentity={username}Resolve profile URN + fetch dash profile (403 falls back to /me for self).invitations (list)POSTflagship-web/rsc-action/actions/pagination?sduiid=com.linkedin.sdui.pagers.mynetwork.invitationsListRSC pagination for pending invites.
 Other v0.1 Endpoints
 CommandMethodEndpointwhoamiGET/me + /identity/profiles/{slug}/networkinfo
 Endpoint Reference — v0.2+ (GraphQL)

@@ -52,6 +52,7 @@ const CONNECTIONS_OF_PAGE_SIZE = 10;
 const CONNECTIONS_OF_ORIGIN = "FACETED_SEARCH";
 const FAST_DELAY_MIN_MS = 200;
 const FAST_DELAY_MAX_MS = 600;
+const MAX_STALL_PAGES = 3;
 const DEBUG_CONNECTIONS =
 	process.env.LI_DEBUG_CONNECTIONS === "1" || process.env.LI_DEBUG_CONNECTIONS === "true";
 const PROFILE_ID_PATTERN = /^ACo[A-Za-z0-9_-]+$/;
@@ -145,9 +146,12 @@ export async function connections(
 			})
 		: null;
 
-	let normalizedConnections: NormalizedConnection[] = [];
+	let fetchResult: { connections: NormalizedConnection[]; hitMaxIterations: boolean } = {
+		connections: [],
+		hitMaxIterations: false,
+	};
 	try {
-		normalizedConnections = await fetchConnectionsFromFlagship(
+		fetchResult = await fetchConnectionsFromFlagship(
 			client,
 			requestUrl,
 			headers,
@@ -169,9 +173,16 @@ export async function connections(
 			progress?.update,
 		);
 	} finally {
-		progress?.done(normalizedConnections.length);
+		progress?.done(fetchResult.connections.length);
 	}
 
+	if (fetchResult.hitMaxIterations) {
+		console.error(
+			"Warning: reached max page limit while fetching connections; results may be incomplete.",
+		);
+	}
+
+	const normalizedConnections = fetchResult.connections;
 	const result: ConnectionsResult = {
 		connections: normalizedConnections,
 		paging: {
@@ -200,12 +211,13 @@ async function fetchConnectionsFromFlagship(
 	pageStep?: number,
 	preferSearchParser = false,
 	onProgress?: ProgressReporter["update"],
-): Promise<NormalizedConnection[]> {
+): Promise<{ connections: NormalizedConnection[]; hitMaxIterations: boolean }> {
 	const connections: NormalizedConnection[] = [];
 	const seen = new Set<string>();
 	let currentStart = start;
 	let iterations = 0;
 	let remainingSkip = Math.max(0, skip);
+	let stallPages = 0;
 	const targetCount = count ?? Number.POSITIVE_INFINITY;
 	const estimatedPageSize = pageStep && pageStep > 0 ? pageStep : 50;
 	const maxIterations =
@@ -290,8 +302,13 @@ async function fetchConnectionsFromFlagship(
 			}
 		}
 
-		if (added === 0) {
-			break;
+		if (added === 0 && remainingSkip === 0) {
+			stallPages += 1;
+			if (stallPages >= MAX_STALL_PAGES) {
+				break;
+			}
+		} else if (added > 0) {
+			stallPages = 0;
 		}
 
 		onProgress?.({
@@ -305,7 +322,7 @@ async function fetchConnectionsFromFlagship(
 		iterations += 1;
 	}
 
-	return connections;
+	return { connections, hitMaxIterations: iterations >= maxIterations };
 }
 
 function createProgressReporter(options: {
