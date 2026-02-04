@@ -124,6 +124,9 @@ Flagship RSC pagination returns up to 50 connections per request and does not ex
 
 500 connections = ~10 requests
 30K connections (LinkedIn max) = ~600 requests
+
+Known limitation (v0.1):
+- `connections --of` search results can miss some 1st/3rd degree entries when fetching all pages due to LinkedIn search ranking + pagination behavior. We may address this in v0.1.1.
 Network flags:
 FlagDescription-nNumber of results (default: 20)--allPaginate through all results (until exhausted)--ofList a connection's connections (username, URL, or URN)--networkFilter connection degrees for --of (1st,2nd,3rd)--fastFaster pacing with adaptive slowdown on rate limits--confirmRequired for bulk operations like --accept-all
 What's NOT in v0.1 (deferred to v0.2):
