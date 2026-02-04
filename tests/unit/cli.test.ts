@@ -297,7 +297,11 @@ describe("CLI", () => {
 
 			expect(mockConnections).toHaveBeenCalledWith(mockCredentials, {
 				json: undefined,
+				all: undefined,
 				count: 20,
+				fast: undefined,
+				noProgress: false,
+				of: undefined,
 				start: 0,
 			});
 		});
@@ -318,7 +322,11 @@ describe("CLI", () => {
 
 			expect(mockConnections).toHaveBeenCalledWith(mockCredentials, {
 				json: undefined,
+				all: undefined,
 				count: 50,
+				fast: undefined,
+				noProgress: false,
+				of: undefined,
 				start: 100,
 			});
 		});
@@ -339,7 +347,10 @@ describe("CLI", () => {
 
 			expect(mockConnections).toHaveBeenCalledWith(mockCredentials, {
 				json: undefined,
+				all: undefined,
 				count: 20,
+				fast: undefined,
+				noProgress: false,
 				start: 0,
 				of: "peggyrayzis",
 			});

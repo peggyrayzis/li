@@ -55,6 +55,7 @@ program
 		"--cookie-source <source>",
 		"Cookie source: auto (default), chrome, safari, none, or comma-separated (e.g., chrome,safari).",
 	)
+	.option("--no-progress", "Disable progress output")
 	.option("--welcome", "Show the welcome banner");
 
 program.configureHelp({ showGlobalOptions: true });
@@ -322,6 +323,7 @@ program
 				start: Number.parseInt(options.start, 10),
 				of: options.of,
 				fast: options.fast,
+				noProgress: globalOpts.progress === false,
 			});
 			console.log(output);
 		} catch (error) {

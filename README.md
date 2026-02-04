@@ -141,6 +141,7 @@ All commands support:
 | `--li-at <token>` | Override li_at cookie |
 | `--jsessionid <token>` | Override JSESSIONID cookie |
 | `--cookie-source <src>` | Cookie source: `chrome`, `safari`, `none`, or comma-separated (e.g., `chrome,safari`). Default: `auto` |
+| `--no-progress` | Disable progress output (progress is written to stderr) |
 | `--welcome` | Show the welcome banner |
 | `-h, --help` | Show help |
 | `-V, --version` | Show version |

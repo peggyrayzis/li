@@ -24,6 +24,7 @@ export interface ConnectionsOptions {
 	all?: boolean;
 	of?: string;
 	fast?: boolean;
+	noProgress?: boolean;
 }
 
 interface ConnectionsResult {
@@ -52,8 +53,6 @@ const FAST_DELAY_MIN_MS = 200;
 const FAST_DELAY_MAX_MS = 600;
 const DEBUG_CONNECTIONS =
 	process.env.LI_DEBUG_CONNECTIONS === "1" || process.env.LI_DEBUG_CONNECTIONS === "true";
-const DISABLE_PROGRESS =
-	process.env.LI_NO_PROGRESS === "1" || process.env.LI_NO_PROGRESS === "true";
 const PROFILE_ID_PATTERN = /^ACo[A-Za-z0-9_-]+$/;
 
 type ProgressReporter = {
@@ -121,7 +120,7 @@ export async function connections(
 		...(connectionOfId ? { "X-Li-Rsc-Stream": "true" } : {}),
 	};
 
-	const showProgress = !options.json && Boolean(process.stderr.isTTY) && !DISABLE_PROGRESS;
+	const showProgress = Boolean(process.stderr.isTTY) && !options.noProgress;
 	const progress = showProgress
 		? createProgressReporter({
 				targetCount: count,
@@ -330,9 +329,14 @@ function createProgressReporter(options: {
 			const elapsed = Date.now() - startTime;
 			const frame = frames[frameIndex % frames.length];
 			frameIndex += 1;
-			const target = targetCount && Number.isFinite(targetCount) ? `/${targetCount}` : "";
+			const hasTarget = Boolean(targetCount && Number.isFinite(targetCount));
+			const target = hasTarget ? `/${targetCount}` : "";
+			const percent =
+				hasTarget && targetCount
+					? ` (${Math.min(100, Math.floor((fetched / targetCount) * 100))}%)`
+					: "";
 			writeLine(
-				`${frame} fetching ${options.label} ${fetched}${target} · page ${page} · ${formatRate(
+				`${frame} fetching ${options.label} ${fetched}${target}${percent} · page ${page} · ${formatRate(
 					fetched,
 					elapsed,
 				)} · ${formatDuration(elapsed)}`,
@@ -340,8 +344,14 @@ function createProgressReporter(options: {
 		},
 		done: (finalCount: number) => {
 			const elapsed = Date.now() - startTime;
+			const hasTarget = Boolean(options.targetCount && Number.isFinite(options.targetCount));
+			const target = hasTarget ? `/${options.targetCount}` : "";
+			const percent =
+				hasTarget && options.targetCount
+					? ` (${Math.min(100, Math.floor((finalCount / options.targetCount) * 100))}%)`
+					: "";
 			writeLine(
-				`fetched ${options.label} ${finalCount} · ${formatRate(
+				`fetched ${options.label} ${finalCount}${target}${percent} · ${formatRate(
 					finalCount,
 					elapsed,
 				)} · ${formatDuration(elapsed)}`,
