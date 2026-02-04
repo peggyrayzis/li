@@ -210,10 +210,13 @@ export function parseProfile(raw: Record<string, unknown>): NormalizedProfile {
 		included?.find((item) => typeof item.publicIdentifier === "string") ??
 		undefined;
 
+	const dataProfile =
+		dataBag && typeof dataBag === "object" ? (dataBag as Record<string, unknown>) : undefined;
 	const dashProfile =
 		(raw.profile as Record<string, unknown>) ||
 		(dataBag?.profile as Record<string, unknown>) ||
 		includedProfile ||
+		dataProfile ||
 		raw;
 
 	const firstName = extractLocalized(dashProfile.firstName as LocalizedField);
