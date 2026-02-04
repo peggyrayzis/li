@@ -7,7 +7,7 @@
  * - Profile URN: "urn:li:fsd_profile:ABC123"
  */
 
-import type { LinkedInClient } from "./client.js";
+import { LinkedInApiError, type LinkedInClient } from "./client.js";
 import endpoints from "./endpoints.json" with { type: "json" };
 import { buildWebHeaders } from "./headers.js";
 import { parseProfile } from "./parser.js";
@@ -18,6 +18,13 @@ const DEBUG_RECIPIENT =
 const DEBUG_RECIPIENT_DUMP =
 	process.env.LI_DEBUG_RECIPIENT_DUMP === "1" ||
 	process.env.LI_DEBUG_RECIPIENT_DUMP === "true";
+
+function isProfileViewEnabled(): boolean {
+	return (
+		process.env.LI_ENABLE_PROFILEVIEW === "1" ||
+		process.env.LI_ENABLE_PROFILEVIEW === "true"
+	);
+}
 
 function debugRecipient(message: string): void {
 	if (!DEBUG_RECIPIENT) {
@@ -148,17 +155,33 @@ async function lookupProfileByUsername(
 	username: string,
 ): Promise<ResolvedRecipient> {
 	debugRecipient(`lookupProfileByUsername username=${username}`);
-	const response = await client.request(
-		`/identity/dash/profiles?q=memberIdentity&memberIdentity=${encodeURIComponent(username)}`,
-		{ method: "GET" },
-	);
-	const data = (await response.json()) as ProfileLookupResponse;
+	let data: ProfileLookupResponse = {};
+	let dashLookupError: LinkedInApiError | null = null;
+	try {
+		const response = await client.request(
+			`/identity/dash/profiles?q=memberIdentity&memberIdentity=${encodeURIComponent(username)}`,
+			{ method: "GET" },
+		);
+		data = (await response.json()) as ProfileLookupResponse;
+	} catch (error) {
+		if (error instanceof LinkedInApiError && error.status === 403) {
+			dashLookupError = error;
+			debugRecipient(`dash lookup forbidden username=${username}`);
+			data = { elements: [] };
+		} else {
+			throw error;
+		}
+	}
 
 	if (!data.elements || data.elements.length === 0) {
 		debugRecipient(`dash lookup empty username=${username}`);
-		const fallback = await lookupProfileByUsernameView(client, username);
-		if (fallback) {
-			return fallback;
+		if (isProfileViewEnabled()) {
+			const fallback = await lookupProfileByUsernameView(client, username);
+			if (fallback) {
+				return fallback;
+			}
+		} else {
+			debugRecipient(`profileView skipped username=${username}`);
 		}
 
 		const htmlFallback = await lookupProfileByHtml(client, username);
@@ -186,6 +209,9 @@ async function lookupProfileByUsername(
 			}
 		}
 
+		if (dashLookupError) {
+			throw dashLookupError;
+		}
 		throw new Error(`Profile not found: ${username}`);
 	}
 

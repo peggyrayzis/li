@@ -59,6 +59,10 @@ li profile https://linkedin.com/in/peggyrayzis      # View by URL
 li profile --json peggyrayzis                       # Output as JSON
 ```
 
+Note: If LinkedIn blocks the full dash profile request (403), the CLI falls back to /me for
+self profiles. The /me payload omits location/industry/summary, so those fields can be blank
+in v0.1.
+
 ### Connections
 
 ```bash

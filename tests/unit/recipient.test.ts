@@ -25,8 +25,11 @@ describe("recipient", () => {
 		requestAbsolute: ReturnType<typeof vi.fn>;
 		getCredentials: ReturnType<typeof vi.fn>;
 	};
+	let previousProfileViewEnv: string | undefined;
 
 	beforeEach(() => {
+		previousProfileViewEnv = process.env.LI_ENABLE_PROFILEVIEW;
+		process.env.LI_ENABLE_PROFILEVIEW = "0";
 		mockClient = {
 			request: vi.fn(),
 			requestAbsolute: vi.fn(),
@@ -43,11 +46,54 @@ describe("recipient", () => {
 
 	afterEach(() => {
 		vi.clearAllMocks();
+		if (previousProfileViewEnv === undefined) {
+			delete process.env.LI_ENABLE_PROFILEVIEW;
+		} else {
+			process.env.LI_ENABLE_PROFILEVIEW = previousProfileViewEnv;
+		}
 	});
 
 	describe("resolveRecipient", () => {
 		describe("plain username input", () => {
-			it("falls back to profileView lookup when dash lookup is empty", async () => {
+			it("falls back to HTML profile page when dash lookup is empty", async () => {
+				mockClient.request
+					.mockResolvedValueOnce({
+						json: () => Promise.resolve({ elements: [] }),
+					})
+					.mockResolvedValueOnce({
+						json: () =>
+							Promise.resolve({
+								miniProfile: {
+									publicIdentifier: "someone-else",
+									entityUrn: "urn:li:fsd_profile:OTHER",
+								},
+							}),
+					});
+				mockClient.requestAbsolute.mockResolvedValueOnce({
+					ok: true,
+					status: 200,
+					text: async () =>
+						'{"publicIdentifier":"peggyrayzis","entityUrn":"urn:li:fsd_profile:ACoAABcd1234"}',
+				});
+
+				const result = await resolveRecipient(
+					mockClient as unknown as LinkedInClient,
+					"peggyrayzis",
+				);
+
+				expect(result).toEqual({
+					username: "peggyrayzis",
+					urn: "urn:li:fsd_profile:ACoAABcd1234",
+				});
+				expect(mockClient.requestAbsolute).toHaveBeenCalledWith(
+					"https://www.linkedin.com/in/peggyrayzis/",
+					expect.objectContaining({ method: "GET" }),
+				);
+				expect(mockClient.request).toHaveBeenCalledTimes(1);
+			});
+
+			it("falls back to profileView lookup when enabled and dash lookup is empty", async () => {
+				process.env.LI_ENABLE_PROFILEVIEW = "1";
 				mockClient.request
 					.mockResolvedValueOnce({
 						json: () => Promise.resolve({ elements: [] }),
@@ -82,6 +128,7 @@ describe("recipient", () => {
 			});
 
 			it("falls back to HTML profile page when profileView fails", async () => {
+				process.env.LI_ENABLE_PROFILEVIEW = "1";
 				mockClient.request
 					.mockResolvedValueOnce({
 						json: () => Promise.resolve({ elements: [] }),
@@ -142,7 +189,6 @@ describe("recipient", () => {
 					.mockResolvedValueOnce({
 						json: () => Promise.resolve({ elements: [] }),
 					})
-					.mockRejectedValueOnce(new Error("Not found"))
 					.mockResolvedValueOnce({
 						json: () =>
 							Promise.resolve({
@@ -172,18 +218,13 @@ describe("recipient", () => {
 					"/identity/dash/profiles?q=memberIdentity&memberIdentity=peggyrayzis",
 					{ method: "GET" },
 				);
-				expect(mockClient.request).toHaveBeenNthCalledWith(
-					2,
-					"/identity/profiles/peggyrayzis/profileView",
-					{ method: "GET" },
-				);
 				expect(mockClient.requestAbsolute).toHaveBeenNthCalledWith(
 					1,
 					"https://www.linkedin.com/in/peggyrayzis/",
 					expect.objectContaining({ method: "GET" }),
 				);
-				expect(mockClient.request).toHaveBeenNthCalledWith(3, "/me", { method: "GET" });
-				expect(mockClient.request).toHaveBeenCalledTimes(3);
+				expect(mockClient.request).toHaveBeenNthCalledWith(2, "/me", { method: "GET" });
+				expect(mockClient.request).toHaveBeenCalledTimes(2);
 			});
 
 			it("trims whitespace from username", async () => {
@@ -215,7 +256,6 @@ describe("recipient", () => {
 					.mockResolvedValueOnce({
 						json: () => Promise.resolve({ elements: [] }),
 					})
-					.mockRejectedValueOnce(new Error("Not found"))
 					.mockResolvedValueOnce({
 						json: () =>
 							Promise.resolve({
@@ -235,11 +275,6 @@ describe("recipient", () => {
 					resolveRecipient(mockClient as unknown as LinkedInClient, "unknownuser"),
 				).rejects.toThrow("Profile not found: unknownuser");
 
-				expect(mockClient.request).toHaveBeenNthCalledWith(
-					2,
-					"/identity/profiles/unknownuser/profileView",
-					{ method: "GET" },
-				);
 				expect(mockClient.requestAbsolute).toHaveBeenNthCalledWith(
 					1,
 					"https://www.linkedin.com/in/unknownuser/",
@@ -467,7 +502,6 @@ describe("recipient", () => {
 					.mockResolvedValueOnce({
 						json: () => Promise.resolve({ elements: null }),
 					})
-					.mockRejectedValueOnce(new Error("Not found"))
 					.mockResolvedValueOnce({
 						json: () =>
 							Promise.resolve({
@@ -487,11 +521,6 @@ describe("recipient", () => {
 					resolveRecipient(mockClient as unknown as LinkedInClient, "unknownuser"),
 				).rejects.toThrow("Profile not found: unknownuser");
 
-				expect(mockClient.request).toHaveBeenNthCalledWith(
-					2,
-					"/identity/profiles/unknownuser/profileView",
-					{ method: "GET" },
-				);
 				expect(mockClient.requestAbsolute).toHaveBeenNthCalledWith(
 					1,
 					"https://www.linkedin.com/in/unknownuser/",
@@ -504,7 +533,6 @@ describe("recipient", () => {
 					.mockResolvedValueOnce({
 						json: () => Promise.resolve({ elements: [] }),
 					})
-					.mockRejectedValueOnce(new Error("Not found"))
 					.mockResolvedValueOnce({
 						json: () =>
 							Promise.resolve({
@@ -529,12 +557,6 @@ describe("recipient", () => {
 					username: "peggyrayzis",
 					urn: "urn:li:fsd_profile:ACoAABcd1234",
 				});
-
-				expect(mockClient.request).toHaveBeenNthCalledWith(
-					2,
-					"/identity/profiles/peggyrayzis/profileView",
-					{ method: "GET" },
-				);
 				expect(mockClient.requestAbsolute).toHaveBeenNthCalledWith(
 					1,
 					"https://www.linkedin.com/in/peggyrayzis/",
@@ -547,7 +569,6 @@ describe("recipient", () => {
 					.mockResolvedValueOnce({
 						json: () => Promise.resolve({ elements: [] }),
 					})
-					.mockRejectedValueOnce(new Error("Not found"))
 					.mockResolvedValueOnce({
 						json: () =>
 							Promise.resolve({
@@ -574,12 +595,6 @@ describe("recipient", () => {
 					username: "peggyrayzis",
 					urn: "urn:li:fsd_profile:ACoAABcd1234",
 				});
-
-				expect(mockClient.request).toHaveBeenNthCalledWith(
-					2,
-					"/identity/profiles/peggyrayzis/profileView",
-					{ method: "GET" },
-				);
 				expect(mockClient.requestAbsolute).toHaveBeenNthCalledWith(
 					1,
 					"https://www.linkedin.com/in/peggyrayzis/",

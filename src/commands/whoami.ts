@@ -5,70 +5,19 @@
 
 import type { LinkedInCredentials } from "../lib/auth.js";
 import { LinkedInClient } from "../lib/client.js";
-import { LINKEDIN_PROFILE_BASE_URL, LINKEDIN_WHOAMI_FOLLOWER_QUERY_ID } from "../lib/constants.js";
+import { LINKEDIN_WHOAMI_FOLLOWER_QUERY_ID } from "../lib/constants.js";
 import endpoints from "../lib/endpoints.json" with { type: "json" };
+import { parseMeResponse, type MeResponse } from "../lib/me.js";
 import { formatWhoami } from "../output/human.js";
 import { formatJson } from "../output/json.js";
-import type { NetworkInfo, NormalizedProfile } from "../output/types.js";
+import type { NetworkInfo } from "../output/types.js";
 
 export interface WhoamiOptions {
 	json?: boolean;
 }
 
-interface MiniProfileIncluded {
-	firstName: string;
-	lastName: string;
-	occupation: string;
-	publicIdentifier: string;
-	objectUrn: string;
-	entityUrn?: string;
-	dashEntityUrn?: string;
-}
-
-interface MeResponse {
-	// Legacy format
-	miniProfile?: MiniProfileIncluded;
-	// Normalized format
-	data?: {
-		"*miniProfile"?: string;
-	};
-	included?: MiniProfileIncluded[];
-}
-
 interface GraphQLResponse {
 	included?: Array<Record<string, unknown>>;
-}
-
-/**
- * Parse /me response into normalized profile.
- * Handles both legacy format (miniProfile) and normalized format (data + included).
- */
-function parseMeResponse(data: MeResponse): NormalizedProfile {
-	let mini: MiniProfileIncluded | undefined;
-
-	// Try legacy format first
-	if (data.miniProfile) {
-		mini = data.miniProfile;
-	}
-	// Try normalized format (data + included arrays)
-	else if (data.included?.length) {
-		mini = data.included[0];
-	}
-
-	if (!mini) {
-		throw new Error("Could not parse profile from /me response");
-	}
-
-	const urn = mini.entityUrn ?? mini.dashEntityUrn ?? mini.objectUrn;
-	return {
-		urn,
-		username: mini.publicIdentifier,
-		firstName: mini.firstName,
-		lastName: mini.lastName,
-		headline: mini.occupation,
-		location: "",
-		profileUrl: `${LINKEDIN_PROFILE_BASE_URL}${mini.publicIdentifier}`,
-	};
 }
 
 /**
