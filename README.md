@@ -1,10 +1,16 @@
 # li — LinkedIn CLI
 
-A CLI for LinkedIn. Cookie auth, Voyager API, agent-friendly.
+A CLI for LinkedIn.
 
 ```bash
 npm install -g @peggyrayzis/li
 li whoami
+```
+
+On first run, `li` shows a welcome banner. You can show it again with:
+
+```bash
+li --welcome
 ```
 
 ## Why This Exists
@@ -91,7 +97,7 @@ li invites                      # List pending invitations
 li invites list                 # Same as above
 li invites list --json          # Output as JSON
 li invites list --json --include-secrets  # Include invitation IDs/secrets (unsafe)
-li invites accept INV123        # Accept an invitation by ID (v0.2)
+li invites accept INV123        # Accept an invitation by ID (v0.2; disabled in v0.1)
 ```
 
 ### Messages
@@ -99,10 +105,21 @@ li invites accept INV123        # Accept an invitation by ID (v0.2)
 ```bash
 li messages                     # List recent conversations
 li messages list -n 10          # Show 10 conversations
+li messages list --start 20     # Pagination offset
 li messages --json              # Output as JSON
 
 li messages read CONV123        # Read messages in a conversation
 li messages read CONV123 -n 50  # Show 50 messages
+li messages read CONV123 --start 20  # Pagination offset
+```
+
+### Query IDs
+
+```bash
+li query-ids                    # Show cached query IDs
+li query-ids --refresh          # Refresh from cached bundles
+li query-ids --refresh --auto   # Auto-discover from LinkedIn bundles (requires auth)
+li query-ids --har path.har     # Refresh from a HAR file
 ```
 
 ### Write Commands (v0.2)
@@ -123,7 +140,8 @@ All commands support:
 | `--json` | Output as JSON for piping to `jq` or agents |
 | `--li-at <token>` | Override li_at cookie |
 | `--jsessionid <token>` | Override JSESSIONID cookie |
-| `--cookie-source <src>` | Cookie source: `chrome` (explicit) or `auto` (default) |
+| `--cookie-source <src>` | Cookie source: `chrome`, `safari`, `none`, or comma-separated (e.g., `chrome,safari`). Default: `auto` |
+| `--welcome` | Show the welcome banner |
 | `-h, --help` | Show help |
 | `-V, --version` | Show version |
 
