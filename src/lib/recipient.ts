@@ -7,6 +7,9 @@
  * - Profile URN: "urn:li:fsd_profile:ABC123"
  */
 
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { LinkedInApiError, type LinkedInClient } from "./client.js";
 import endpoints from "./endpoints.json" with { type: "json" };
 import { buildWebHeaders } from "./headers.js";
@@ -18,6 +21,9 @@ const DEBUG_RECIPIENT =
 const DEBUG_RECIPIENT_DUMP =
 	process.env.LI_DEBUG_RECIPIENT_DUMP === "1" ||
 	process.env.LI_DEBUG_RECIPIENT_DUMP === "true";
+const RECIPIENT_CACHE_PATH =
+	process.env.LI_RECIPIENT_CACHE_PATH ??
+	path.join(os.tmpdir(), "li-recipient-cache.json");
 
 function isProfileViewEnabled(): boolean {
 	return (
@@ -31,6 +37,45 @@ function debugRecipient(message: string): void {
 		return;
 	}
 	process.stderr.write(`[li][recipient] ${message}\n`);
+}
+
+type RecipientCache = Record<string, { urn: string; updatedAt: number }>;
+
+function loadRecipientCache(): RecipientCache {
+	try {
+		const raw = readFileSync(RECIPIENT_CACHE_PATH, "utf8");
+		const parsed = JSON.parse(raw) as RecipientCache;
+		if (!parsed || typeof parsed !== "object") {
+			return {};
+		}
+		return parsed;
+	} catch {
+		return {};
+	}
+}
+
+function saveRecipientCache(cache: RecipientCache): void {
+	try {
+		mkdirSync(path.dirname(RECIPIENT_CACHE_PATH), { recursive: true });
+		writeFileSync(RECIPIENT_CACHE_PATH, JSON.stringify(cache), "utf8");
+	} catch {
+		// Best-effort cache; ignore failures.
+	}
+}
+
+function warnIfRecipientChanged(key: string, currentUrn: string): void {
+	if (!key || !currentUrn) {
+		return;
+	}
+	const cache = loadRecipientCache();
+	const previous = cache[key]?.urn ?? "";
+	if (previous && previous !== currentUrn) {
+		process.stderr.write(
+			`[li][recipient] warning=profile_urn_changed key=${key} prev=${previous} next=${currentUrn}\n`,
+		);
+	}
+	cache[key] = { urn: currentUrn, updatedAt: Date.now() };
+	saveRecipientCache(cache);
 }
 
 /**
@@ -117,12 +162,12 @@ export async function resolveRecipient(
 	}
 
 	// If it's already a URN, look up the profile to get the username
-	if (parsed.identifier.startsWith("urn:li:")) {
-		return lookupProfileByUrn(client, parsed.identifier);
-	}
+	const resolved = parsed.identifier.startsWith("urn:li:")
+		? await lookupProfileByUrn(client, parsed.identifier)
+		: await lookupProfileByUsername(client, parsed.identifier);
 
-	// It's a username, look up to get the URN
-	return lookupProfileByUsername(client, parsed.identifier);
+	warnIfRecipientChanged(resolved.username || parsed.identifier, resolved.urn);
+	return resolved;
 }
 
 /**

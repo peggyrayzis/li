@@ -112,7 +112,7 @@ describe.skipIf(!shouldRunIntegration)("read-only integration", () => {
 			expect(parsed.paging.total).toBeNull();
 			expect(parsed.paging.count).toBeLessThanOrEqual(3);
 			expect(parsed.paging.start).toBe(0);
-		});
+		}, 15000);
 	});
 
 	describe("messages command", () => {
