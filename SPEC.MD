@@ -1,4 +1,4 @@
-li — A CLI for LinkedIn
+li — The LinkedIn CLI for agents
 Bird for LinkedIn. Cookie auth, Voyager API, agent-friendly.
 
 Post, read, comment, react, and manage your LinkedIn from the terminal — powered by LinkedIn's internal Voyager API and your existing browser session.

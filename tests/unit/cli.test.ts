@@ -364,15 +364,7 @@ describe("CLI", () => {
 			vi.resetModules();
 
 			const originalArgv = process.argv;
-			process.argv = [
-				"node",
-				"li",
-				"connections",
-				"--of",
-				"peggyrayzis",
-				"--network",
-				"1st,3rd",
-			];
+			process.argv = ["node", "li", "connections", "--of", "peggyrayzis", "--network", "1st,3rd"];
 
 			try {
 				await import("../../src/cli.js");

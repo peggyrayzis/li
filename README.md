@@ -1,288 +1,180 @@
-# li — LinkedIn CLI
+# li — The LinkedIn CLI for agents
 
-A CLI for LinkedIn.
+Stop opening LinkedIn. Let your agents do it.
 
 ```bash
 npm install -g @peggyrayzis/li
 li whoami
 ```
 
-On first run, `li` shows a welcome banner. You can show it again with:
+> Built by [@peggyrayzis](https://linkedin.com/in/peggyrayzis) of [scale.dev](https://scale.dev) — marketing & GTM for devtools and AI founders.
+> Working on something cool? Reach out at **li@scale.dev**.
 
-```bash
-li --welcome
-```
+## Why
 
-## Why This Exists
+I was tired of building growth workflows that depended on Clay — which doesn't have an API. Then I saw [Bird](https://github.com/steipete/bird) (a CLI for Twitter) and thought: LinkedIn needs this.
 
-Bird proved the model: skip OAuth app registration, use your browser cookies, talk to the platform's internal API, and wrap it all in a fast CLI that agents and humans both love.
-
-LinkedIn has no equivalent. The tools that exist are either scraping-only, require OAuth app setup, or are abandoned side projects. `li` fills that gap.
+So I built `li`. Cookie auth, LinkedIn's internal Voyager API, structured JSON output. Now my agents handle prospecting, connection monitoring, and message triage without me ever opening a browser tab.
 
 ## Quick Start
 
-### 1. Get Your Cookies
-
-Open LinkedIn in Chrome, then:
-
-1. Open DevTools (`Cmd+Option+I` / `Ctrl+Shift+I`)
-2. Go to **Application** → **Cookies** → `https://www.linkedin.com`
-3. Copy the values for `li_at` and `JSESSIONID`
-
-### 2. Set Environment Variables
+### Option A: Auto-extract cookies from Chrome or Safari
 
 ```bash
+li check
+```
+
+On macOS, `li` can read your LinkedIn cookies directly from Chrome or Safari. If it works, you're done. Fair warning — cookie extraction can be flaky depending on your OS and browser version. If it doesn't work, Option B is reliable.
+
+### Option B: Set cookies manually
+
+```bash
+# Open Chrome DevTools → Application → Cookies → linkedin.com
+# Copy li_at and JSESSIONID values
+
 export LINKEDIN_LI_AT="your-li-at-value"
 export LINKEDIN_JSESSIONID="your-jsessionid-value"
+li check
 ```
 
-### 3. Verify It Works
+### Verify
 
 ```bash
-li check    # Validates your session
-li whoami   # Shows your profile info
+li whoami          # See your profile
+li connections     # List your connections
+li messages        # Check recent conversations
 ```
-
-## Security & Privacy Notes
-
-- `li` uses your LinkedIn session cookies. Treat them like passwords and never share them.
-- By default, the CLI will try to read cookies from your local browser profiles (`--cookie-source auto`).
-  If you do not want automatic browser extraction, run with `--cookie-source none` and provide cookies
-  via environment variables instead.
-- Avoid sharing HAR files or debug logs; they often contain cookies, headers, and personal data.
 
 ## Commands
 
-Note: v0.1 is read-only. Write commands (connect, send, invites accept) are disabled and will return an error. These are planned for v0.2.
+v0.1 is read-only. Write commands (`connect`, `send`, `invites accept`) ship in v0.2.
 
 ### Identity
 
 ```bash
-li whoami                    # Show logged-in user (name, headline, follower/connection counts)
-li whoami --json             # Output as JSON
-
-li check                     # Validate session and show credential source
-li check --json
+li whoami                         # Your profile + network counts
+li check                          # Validate session, show credential source
 ```
 
-### Profile
+### Profiles
 
 ```bash
-li profile peggyrayzis                              # View by username
-li profile https://linkedin.com/in/peggyrayzis      # View by URL
-li profile --json peggyrayzis                       # Output as JSON
+li profile peggyrayzis            # View by username
+li profile linkedin.com/in/user   # View by URL
 ```
-
-Note: If LinkedIn blocks the full dash profile request (403), the CLI falls back to /me for
-self profiles. The /me payload omits location/industry/summary, so those fields can be blank
-in v0.1.
 
 ### Connections
 
 ```bash
-li connections                  # List your connections (default: 20)
-li connections -n 50            # Show 50 connections
-li connections -n 150           # Paginate to return more than 50
-li connections --all            # Fetch all connections (paginated)
-li connections --all --fast     # Faster pacing with adaptive slowdown on rate limits
-li connections --start 20       # Pagination offset
-li connections --json           # Output as JSON
-li connections --of peggyrayzis # List a connection's connections (total unknown)
-li connections --of peggyrayzis --network 1st,2nd,3rd # Include all degrees for connections-of
+li connections                    # List connections (default: 20)
+li connections -n 50              # Show 50
+li connections --all              # Fetch all (paginated)
+li connections --of peggyrayzis   # View someone else's connections
 ```
 
 ### Invitations
 
 ```bash
-li invites                      # List pending invitations
-li invites list                 # Same as above
-li invites list --json          # Output as JSON
-li invites list --json --include-secrets  # Include invitation IDs/secrets (unsafe)
-li invites accept INV123        # Accept an invitation by ID (v0.2; disabled in v0.1)
+li invites                        # List pending invitations
 ```
 
 ### Messages
 
 ```bash
-li messages                     # List recent conversations
-li messages list -n 10          # Show 10 conversations
-li messages list --start 20     # Pagination offset
-li messages --json              # Output as JSON
-
-li messages read CONV123        # Read messages in a conversation
-li messages read CONV123 -n 50  # Show 50 messages
-li messages read CONV123 --start 20  # Pagination offset
+li messages                       # List recent conversations
+li messages read CONV_ID          # Read a thread
+li messages read CONV_ID -n 50   # Last 50 messages
 ```
 
-### Query IDs
+Every command supports `--json` for piping to `jq` or feeding to agents.
 
-```bash
-li query-ids                    # Show cached query IDs
-li query-ids --refresh          # Refresh from cached bundles
-li query-ids --refresh --auto   # Auto-discover from LinkedIn bundles (requires auth)
-li query-ids --har path.har     # Refresh from a HAR file
-```
+## Agent Workflows
 
-### Write Commands (v0.2)
+`li` is built for agents. Pipe `--json` output into whatever you want.
 
-```bash
-li send peggyrayzis "Hey, quick question about your talk"
-li send peggyrayzis "Following up!" --json
-li connect peggyrayzis
-li connect peggyrayzis --note "Great talk!"
-```
-
-## Global Options
-
-All commands support:
-
-| Option | Description |
-|--------|-------------|
-| `--json` | Output as JSON for piping to `jq` or agents |
-| `--li-at <token>` | Override li_at cookie |
-| `--jsessionid <token>` | Override JSESSIONID cookie |
-| `--cookie-source <src>` | Cookie source: `chrome`, `safari`, `none`, or comma-separated (e.g., `chrome,safari`). Default: `auto` |
-| `--no-progress` | Disable progress output (progress is written to stderr) |
-| `--welcome` | Show the welcome banner |
-| `-h, --help` | Show help |
-| `-V, --version` | Show version |
-
-## Debugging
-
-```bash
-# Basic request logging
-LI_DEBUG_HTTP=1
-
-# Messaging troubleshooting
-LI_DEBUG_MESSAGES=1
-LI_DEBUG_MESSAGES_RESPONSE=1
-
-# Query ID discovery troubleshooting
-LI_DEBUG_QUERY_IDS=1
-```
-
-## Output Modes
-
-### Human (Default)
-
-Pretty terminal output with emoji and color:
-
-```
-👤 Peggy Rayzis
-   Developer marketing for devtools and AI founders
-
-   📍 San Francisco Bay Area
-   🔗 https://linkedin.com/in/peggyrayzis
-
-   👥 1,203 connections  ·  👁️ 4,821 followers
-```
-
-### JSON (`--json`)
-
-Structured JSON for agents and scripts:
-
-```json
-{
-  "profile": {
-    "urn": "urn:li:fsd_profile:ABC123",
-    "username": "peggyrayzis",
-    "firstName": "Peggy",
-    "lastName": "Rayzis",
-    "headline": "Developer marketing for devtools and AI founders"
-  },
-  "networkInfo": {
-    "followersCount": 4821,
-    "connectionsCount": 1203
-  }
-}
-```
-
-## Agent Integration
-
-`li` is designed to be called by Claude, GPT, or any coding agent.
-
-### Filter connections and send personalized DMs (v0.2)
+### Find CTOs in your network
 
 ```bash
 li connections --all --json | \
-  jq -r '.connections[] | select(.headline | test("CTO"; "i")) | .username' | \
-  while read user; do
-    li send "$user" "Hi! I noticed you're a CTO..."
-    sleep 30  # Respect rate limits
-  done
+  jq -r '.connections[] | select(.headline | test("CTO"; "i")) | .username'
 ```
 
-### Process pending invites (v0.2)
-
-```bash
-li invites --json --include-secrets | \
-  jq -r '.invitations[] | select(.sharedConnections > 3) | .invitationId' | \
-  xargs -I{} li invites accept {}
-```
-
-### Check for unread messages
+### Check unread messages
 
 ```bash
 li messages --json | jq '.conversations[] | select(.unreadCount > 0)'
 ```
 
-## Library Usage
+### Find CTOs in a connection's network
 
-Use `li` programmatically in your Node.js applications:
-
-```typescript
-import { resolveCredentials, LinkedInClient, whoami } from '@peggyrayzis/li';
-
-// Resolve credentials from environment
-const { credentials } = await resolveCredentials({});
-
-// Use the high-level commands
-const output = await whoami(credentials, { json: true });
-console.log(JSON.parse(output));
-
-// Or use the client directly
-const client = new LinkedInClient(credentials);
-const response = await client.request('/me');
-const me = await response.json();
+```bash
+li connections --of peggyrayzis --all --json | \
+  jq -r '.connections[] | select(.headline | test("CTO"; "i")) | .username'
 ```
+
+### Export connections to CSV
+
+```bash
+li connections --all --json | \
+  jq -r '.connections[] | [.firstName, .lastName, .headline, .username] | @csv'
+```
+
+## Global Options
+
+| Option | Description |
+|--------|-------------|
+| `--json` | Structured JSON output |
+| `--li-at <token>` | Override li_at cookie |
+| `--jsessionid <token>` | Override JSESSIONID |
+| `--cookie-source <src>` | `chrome`, `safari`, `none`, or `auto` (default) |
+| `--no-progress` | Suppress progress output |
+| `-h, --help` | Help |
+| `-V, --version` | Version |
 
 ## Environment Variables
 
 | Variable | Description |
 |----------|-------------|
 | `LINKEDIN_LI_AT` | Your li_at session cookie |
-| `LINKEDIN_JSESSIONID` | Your JSESSIONID cookie (used as CSRF token) |
+| `LINKEDIN_JSESSIONID` | Your JSESSIONID cookie (CSRF token) |
 
 ## Requirements
 
 - Node.js >= 22
-- A valid LinkedIn session (logged in via browser)
+- A valid LinkedIn session (logged in via Chrome)
 
 ## Rate Limiting
 
-LinkedIn is aggressive about bot detection. `li` enforces:
+LinkedIn is aggressive about bot detection. `li` enforces minimum 500ms between requests with exponential backoff on 429s. For bulk operations, add your own delays between commands.
 
-- Minimum 500ms between API requests
-- Exponential backoff on 429 (rate limit) responses
-- Automatic retry with increasing delays
+## Programmatic API
 
-For bulk operations, add your own delays:
+A library API for using `li` in Node.js applications is planned for v0.2.
+
+## Contributing
+
+PRs welcome. Here's the setup:
 
 ```bash
-for user in $(cat leads.txt); do
-  li send "$user" "Your message"
-  sleep 30  # 30 seconds between sends
-done
+git clone https://github.com/peggyrayzis/li.git
+cd li
+pnpm install
+pnpm test        # Run tests
+pnpm lint        # Check with Biome
+pnpm run build   # Build with tsup
 ```
+
+This project uses TDD — write tests first, then implement. Tests live in `tests/unit/` and fixtures in `tests/fixtures/`. Run `pnpm test` to confirm everything passes before opening a PR.
+
+A few ground rules:
+- **No secrets in code.** Real cookie values, API keys, or PII will be rejected.
+- **No external LinkedIn API libraries.** We own the Voyager calls directly.
+- **v0.1 is read-only.** Write commands (`send`, `connect`, `invites accept`) are deferred to v0.2.
+- **Open an issue first** for large changes so we can discuss the approach.
 
 ## Disclaimer
 
-This tool uses LinkedIn's internal Voyager API with cookie authentication. It is intended for personal use and agent-powered workflows on your own account.
-
-- LinkedIn can change their API at any time
-- Aggressive automation may result in account restrictions
-- This tool is not affiliated with or endorsed by LinkedIn
-- Use responsibly and respect LinkedIn's terms of service
+This tool uses LinkedIn's internal Voyager API with cookie authentication for personal use and agent-powered workflows on your own account. LinkedIn can change their API at any time. Aggressive automation may result in account restrictions. Not affiliated with or endorsed by LinkedIn.
 
 ## License
 

@@ -1,6 +1,6 @@
-# li — LinkedIn CLI
+# li — The LinkedIn CLI for agents
 
-A CLI for LinkedIn using cookie auth and the Voyager API. See SPEC.MD for full details.
+The LinkedIn CLI for agents. Cookie auth, Voyager API. See SPEC.MD for full details.
 
 ## How to Work on This Project
 

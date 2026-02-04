@@ -1,10 +1,10 @@
-#!/usr/bin/env node
 /**
  * li CLI - LinkedIn from the terminal.
  * Cookie auth, Voyager API, agent-friendly.
  */
 
 import fs from "node:fs";
+import { createRequire } from "node:module";
 import os from "node:os";
 import path from "node:path";
 import "dotenv/config";
@@ -19,7 +19,8 @@ import { queryIds } from "./commands/query-ids.js";
 import { whoami } from "./commands/whoami.js";
 import { type BrowserSource, resolveCredentials } from "./lib/auth.js";
 
-const CLI_VERSION = "0.1.0";
+const require = createRequire(import.meta.url);
+const { version: CLI_VERSION } = require("../package.json") as { version: string };
 const WELCOME_FLAG_PATH = path.join(os.homedir(), ".li_welcome");
 const LINKEDIN_BLUE_RGB = { r: 10, g: 102, b: 194 };
 const LIGHT_GREEN_RGB = { r: 156, g: 203, b: 155 };
@@ -47,7 +48,7 @@ const program = new Command();
 
 program
 	.name("li")
-	.description("LinkedIn CLI")
+	.description("The LinkedIn CLI for agents")
 	.version(CLI_VERSION)
 	.option("--li-at <token>", "LinkedIn li_at cookie token")
 	.option("--jsessionid <token>", "LinkedIn JSESSIONID cookie token")
@@ -246,9 +247,7 @@ function parseNetworkDegrees(input?: string): NetworkDegree[] | undefined {
 			degrees.push("3rd");
 			continue;
 		}
-		throw new Error(
-			`Invalid --network value: ${token}. Use comma-separated: 1st,2nd,3rd`,
-		);
+		throw new Error(`Invalid --network value: ${token}. Use comma-separated: 1st,2nd,3rd`);
 	}
 
 	return Array.from(new Set(degrees));
