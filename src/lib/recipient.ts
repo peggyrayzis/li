@@ -292,14 +292,22 @@ async function lookupProfileByHtml(
 		}
 		const decoded = html.replace(/\\u002F/g, "/");
 
-		const profileUrnMatch = decoded.match(/urn:li:fsd_profile:[^"\\s]+/);
+		const profileUrnMatches = decoded.match(/urn:li:fsd_profile:[^"\\s]+/g) ?? [];
 		const profileIdMatch = decoded.match(/"profileId":"([^"]+)"/);
-		const memberUrnMatch = decoded.match(/urn:li:member:[^"\\s]+/);
+		const memberUrnMatches = decoded.match(/urn:li:member:[^"\\s]+/g) ?? [];
+		const longestProfileUrn =
+			profileUrnMatches.length > 0
+				? profileUrnMatches.sort((a, b) => b.length - a.length)[0]
+				: undefined;
+		const longestMemberUrn =
+			memberUrnMatches.length > 0
+				? memberUrnMatches.sort((a, b) => b.length - a.length)[0]
+				: undefined;
 		const publicIdentifierMatch = decoded.match(/"publicIdentifier":"([^"]+)"/);
 		const urn =
-			profileUrnMatch?.[0] ??
 			(profileIdMatch ? `urn:li:fsd_profile:${profileIdMatch[1]}` : undefined) ??
-			memberUrnMatch?.[0] ??
+			longestProfileUrn ??
+			longestMemberUrn ??
 			"";
 		if (!urn) {
 			debugRecipient(`profileHtml urn not found username=${username}`);
