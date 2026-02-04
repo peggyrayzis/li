@@ -76,9 +76,7 @@ export async function listInvites(
 	const payload = new TextDecoder("utf-8").decode(buffer);
 	if (DEBUG_INVITES) {
 		const preview = payload.slice(0, 2000);
-		process.stderr.write(
-			`[li][invites] payload_length=${payload.length} preview=${preview}\n`,
-		);
+		process.stderr.write(`[li][invites] payload_length=${payload.length} preview=${preview}\n`);
 	}
 	const invitations = parseInvitationsFromFlagshipRsc(payload);
 	const total = invitations.length;

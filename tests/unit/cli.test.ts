@@ -39,7 +39,7 @@ describe("CLI", () => {
 	const mockCredentials = {
 		liAt: "test-token",
 		jsessionId: "ajax:123",
-		cookieHeader: buildCookieHeader("test-token","ajax:123"),
+		cookieHeader: buildCookieHeader("test-token", "ajax:123"),
 		csrfToken: "ajax:123",
 		source: "env" as const,
 	};
@@ -116,6 +116,25 @@ describe("CLI", () => {
 			);
 		});
 
+		it("passes --cookie-source chrome after command to resolveCredentials", async () => {
+			mockCheck.mockResolvedValue("Session valid");
+			vi.resetModules();
+
+			const originalArgv = process.argv;
+			process.argv = ["node", "li", "check", "--cookie-source", "chrome"];
+
+			try {
+				await import("../../src/cli.js");
+				await new Promise((r) => setTimeout(r, 10));
+			} finally {
+				process.argv = originalArgv;
+			}
+
+			expect(mockResolveCredentials).toHaveBeenCalledWith(
+				expect.objectContaining({ cookieSource: ["chrome"] }),
+			);
+		});
+
 		it("uses auto (chrome fallback) by default", async () => {
 			mockWhoami.mockResolvedValue("test output");
 			vi.resetModules();
@@ -132,6 +151,34 @@ describe("CLI", () => {
 
 			expect(mockResolveCredentials).toHaveBeenCalledWith(
 				expect.objectContaining({ cookieSource: ["chrome", "safari"] }),
+			);
+		});
+	});
+
+	describe("error handling", () => {
+		it("prints auth warnings when credential resolution fails", async () => {
+			mockResolveCredentials.mockRejectedValue(
+				Object.assign(new Error("LinkedIn credentials not found."), {
+					warnings: ["Failed to extract cookies from: chrome"],
+				}),
+			);
+			vi.resetModules();
+
+			const originalArgv = process.argv;
+			process.argv = ["node", "li", "whoami", "--cookie-source", "chrome"];
+
+			try {
+				await import("../../src/cli.js");
+				await new Promise((r) => setTimeout(r, 10));
+			} finally {
+				process.argv = originalArgv;
+			}
+
+			expect(mockConsoleError).toHaveBeenCalledWith(
+				expect.stringContaining("Failed to extract cookies from: chrome"),
+			);
+			expect(mockConsoleError).toHaveBeenCalledWith(
+				expect.stringContaining("LinkedIn credentials not found."),
 			);
 		});
 	});

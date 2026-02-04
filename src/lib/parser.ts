@@ -460,7 +460,9 @@ export function parseConnectionsFromSearchStream(payload: string): NormalizedCon
 		const escapedUsername = escapeRegex(username);
 		const urlPattern = `https:\\\\/\\\\/www\\.linkedin\\.com\\\\/in\\\\/${escapedUsername}\\\\/`;
 		const profileThenUrl = new RegExp(`"profileId":"([^"]+)"[\\s\\S]{0,1200}?"url":"${urlPattern}`);
-		const urlThenProfile = new RegExp(`"url":"${urlPattern}"[\\s\\S]{0,1200}?"profileId":"([^"]+)"`);
+		const urlThenProfile = new RegExp(
+			`"url":"${urlPattern}"[\\s\\S]{0,1200}?"profileId":"([^"]+)"`,
+		);
 		const profileThenUrlMatch = chunk.match(profileThenUrl);
 		if (profileThenUrlMatch?.[1]) {
 			return profileThenUrlMatch[1];
@@ -484,7 +486,7 @@ export function parseConnectionsFromSearchStream(payload: string): NormalizedCon
 			break;
 		}
 		const chunk = normalizedPayload.slice(start, start + 12000);
-		const urlMatch = chunk.match(/"url":"https:\/\/www\.linkedin\.com\/in\/([^"\/]+)\//);
+		const urlMatch = chunk.match(/"url":"https:\/\/www\.linkedin\.com\/in\/([^"/]+)\//);
 		if (!urlMatch) {
 			index = start + marker.length;
 			continue;

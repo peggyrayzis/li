@@ -121,8 +121,7 @@ export async function connections(
 		...(connectionOfId ? { "X-Li-Rsc-Stream": "true" } : {}),
 	};
 
-	const showProgress =
-		!options.json && Boolean(process.stderr.isTTY) && !DISABLE_PROGRESS;
+	const showProgress = !options.json && Boolean(process.stderr.isTTY) && !DISABLE_PROGRESS;
 	const progress = showProgress
 		? createProgressReporter({
 				targetCount: count,
@@ -240,7 +239,8 @@ async function fetchConnectionsFromFlagship(
 				: parseConnectionsFromSearchStream(payload);
 			if (pageConnections.length === 0) {
 				const htmlFallback = parseConnectionsFromSearchHtml(payload);
-				pageConnections = htmlFallback.length > 0 ? htmlFallback : parseConnectionsFromFlagshipRsc(payload);
+				pageConnections =
+					htmlFallback.length > 0 ? htmlFallback : parseConnectionsFromFlagshipRsc(payload);
 			}
 		} else {
 			pageConnections = isHtml
@@ -330,8 +330,7 @@ function createProgressReporter(options: {
 			const elapsed = Date.now() - startTime;
 			const frame = frames[frameIndex % frames.length];
 			frameIndex += 1;
-			const target =
-				targetCount && Number.isFinite(targetCount) ? `/${targetCount}` : "";
+			const target = targetCount && Number.isFinite(targetCount) ? `/${targetCount}` : "";
 			writeLine(
 				`${frame} fetching ${options.label} ${fetched}${target} · page ${page} · ${formatRate(
 					fetched,
@@ -352,7 +351,10 @@ function createProgressReporter(options: {
 	};
 }
 
-function buildConnectionsPaginationBody(startIndex: number, _pageSize: number): Record<string, unknown> {
+function buildConnectionsPaginationBody(
+	startIndex: number,
+	_pageSize: number,
+): Record<string, unknown> {
 	return {
 		pagerId: "com.linkedin.sdui.pagers.mynetwork.connectionsList",
 		clientArguments: {
@@ -453,7 +455,10 @@ function buildConnectionsOfSearchPath(connectionOfId: string, page = 1): string 
 	return `/search/results/people/?${params.toString()}`;
 }
 
-function buildConnectionsOfSearchBody(startIndex: number, connectionOfId: string): Record<string, unknown> {
+function buildConnectionsOfSearchBody(
+	startIndex: number,
+	connectionOfId: string,
+): Record<string, unknown> {
 	const page = Math.floor(startIndex / CONNECTIONS_OF_PAGE_SIZE) + 1;
 	const pageKey = `SearchResultsauto-binding-${page}`;
 

@@ -7,7 +7,7 @@ import type { LinkedInCredentials } from "../lib/auth.js";
 import { LinkedInClient } from "../lib/client.js";
 import { LINKEDIN_WHOAMI_FOLLOWER_QUERY_ID } from "../lib/constants.js";
 import endpoints from "../lib/endpoints.json" with { type: "json" };
-import { parseMeResponse, type MeResponse } from "../lib/me.js";
+import { type MeResponse, parseMeResponse } from "../lib/me.js";
 import { formatWhoami } from "../output/human.js";
 import { formatJson } from "../output/json.js";
 import type { NetworkInfo } from "../output/types.js";

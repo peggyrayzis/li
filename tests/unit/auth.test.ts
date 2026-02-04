@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type LinkedInCredentials, resolveCredentials } from "../../src/lib/auth.js";
 import {
+	buildCookieHeader,
 	JSID_COOKIE_NAME,
 	LI_AT_COOKIE_NAME,
 	LINKEDIN_JSID_ENV,
-	buildCookieHeader,
 } from "../helpers/cookies.js";
 
 vi.mock("@steipete/sweet-cookie", () => ({
@@ -45,7 +45,7 @@ describe("auth", () => {
 					jsessionId: "my-jsession",
 				});
 
-				expect(result.credentials.cookieHeader).toBe(buildCookieHeader("my-li-at","my-jsession"));
+				expect(result.credentials.cookieHeader).toBe(buildCookieHeader("my-li-at", "my-jsession"));
 			});
 
 			it("CLI flags override environment variables", async () => {
@@ -81,7 +81,9 @@ describe("auth", () => {
 
 				const result = await resolveCredentials({});
 
-				expect(result.credentials.cookieHeader).toBe(buildCookieHeader("env-li-at","env-jsession"));
+				expect(result.credentials.cookieHeader).toBe(
+					buildCookieHeader("env-li-at", "env-jsession"),
+				);
 			});
 
 			it("strips quotes from session id if present", async () => {
@@ -236,6 +238,18 @@ describe("auth", () => {
 			await expect(resolveCredentials({ cookieSource: ["chrome"] })).rejects.toThrow(
 				/LinkedIn credentials not found/,
 			);
+		});
+
+		it("includes browser warnings when Chrome extraction fails", async () => {
+			const { getCookies } = await import("@steipete/sweet-cookie");
+			vi.mocked(getCookies).mockResolvedValue({
+				cookies: [],
+				warnings: ["Chrome cookie DB locked"],
+			});
+
+			await expect(resolveCredentials({ cookieSource: ["chrome"] })).rejects.toMatchObject({
+				warnings: ["Chrome cookie DB locked"],
+			});
 		});
 
 		it("does not attempt Chrome extraction when cookieSource not specified", async () => {

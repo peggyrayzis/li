@@ -8,7 +8,7 @@ import networkInfoFixture from "../../fixtures/networkinfo.json";
 const mockCredentials: LinkedInCredentials = {
 	liAt: "AQE-test-li-at-token",
 	jsessionId: "ajax:1234567890123456789",
-	cookieHeader: buildCookieHeader("AQE-test-li-at-token","ajax:1234567890123456789"),
+	cookieHeader: buildCookieHeader("AQE-test-li-at-token", "ajax:1234567890123456789"),
 	csrfToken: "ajax:1234567890123456789",
 	source: "env",
 };

@@ -23,6 +23,7 @@ const CLI_VERSION = "0.1.0";
 const WELCOME_FLAG_PATH = path.join(os.homedir(), ".li_welcome");
 const LINKEDIN_BLUE_RGB = { r: 10, g: 102, b: 194 };
 const LIGHT_GREEN_RGB = { r: 156, g: 203, b: 155 };
+const DEFAULT_COOKIE_SOURCES: BrowserSource[] = ["chrome", "safari"];
 const WELCOME_LOGO = [
 	"  ██╗     ██╗",
 	"  ██║     ██║",
@@ -52,7 +53,7 @@ program
 	.option("--jsessionid <token>", "LinkedIn JSESSIONID cookie token")
 	.option(
 		"--cookie-source <source>",
-		"Cookie source: chrome, safari, none, or comma-separated (e.g., chrome,safari).",
+		"Cookie source: auto (default), chrome, safari, none, or comma-separated (e.g., chrome,safari).",
 	)
 	.option("--welcome", "Show the welcome banner");
 
@@ -175,7 +176,25 @@ function maybeShowWelcome(): boolean {
  */
 function handleError(error: unknown): never {
 	const message = error instanceof Error ? error.message : String(error);
+	const warningList =
+		error && typeof error === "object" && "warnings" in error
+			? (error as { warnings?: unknown }).warnings
+			: undefined;
+
+	if (Array.isArray(warningList)) {
+		for (const warning of warningList) {
+			if (typeof warning !== "string") {
+				continue;
+			}
+			console.error(pc.yellow(`⚠ ${warning}`));
+		}
+	}
 	console.error(pc.red(`✗ ${message}`));
+	process.exit(1);
+}
+
+function blockWriteCommand(command: string): never {
+	console.error(pc.red(`✗ ${command} is deferred to v0.2`));
 	process.exit(1);
 }
 
@@ -183,15 +202,15 @@ function handleError(error: unknown): never {
  * Parse cookie source option into array of browser sources.
  */
 function parseCookieSource(source?: string): BrowserSource[] | undefined {
-	if (!source || source === "none") {
+	const normalized = source?.trim().toLowerCase();
+	if (!normalized || normalized === "auto") {
+		return DEFAULT_COOKIE_SOURCES;
+	}
+	if (normalized === "none") {
 		return undefined;
 	}
-	if (source === "auto") {
-		// Default: try Chrome and Safari
-		return ["chrome", "safari"];
-	}
 	// Parse comma-separated list
-	const browsers = source.split(",").map((s) => s.trim().toLowerCase());
+	const browsers = normalized.split(",").map((s) => s.trim().toLowerCase());
 	const valid: BrowserSource[] = [];
 	for (const b of browsers) {
 		if (b === "chrome" || b === "safari") {
@@ -311,6 +330,18 @@ program
 	});
 
 // ============================================================================
+// connect - Deferred to v0.2 (write command)
+// ============================================================================
+program
+	.command("connect <identifier>")
+	.description("Send a connection request (deferred to v0.2)")
+	.option("--note <message>", "Custom message to include with request")
+	.option("--json", "Output as JSON")
+	.action(() => {
+		blockWriteCommand("connect");
+	});
+
+// ============================================================================
 // invites - List and accept invitations
 // ============================================================================
 const invitesCmd = program.command("invites").description("Manage pending connection invitations");
@@ -332,6 +363,14 @@ invitesCmd
 		} catch (error) {
 			handleError(error);
 		}
+	});
+
+invitesCmd
+	.command("accept <invitationId>")
+	.description("Accept an invitation (deferred to v0.2)")
+	.option("--json", "Output as JSON")
+	.action(() => {
+		blockWriteCommand("invites accept");
 	});
 
 // ============================================================================
@@ -381,6 +420,17 @@ messagesCmd
 		} catch (error) {
 			handleError(error);
 		}
+	});
+
+// ============================================================================
+// send - Deferred to v0.2 (write command)
+// ============================================================================
+program
+	.command("send <recipient> <message>")
+	.description("Send a direct message (deferred to v0.2)")
+	.option("--json", "Output as JSON")
+	.action(() => {
+		blockWriteCommand("send");
 	});
 
 // ============================================================================

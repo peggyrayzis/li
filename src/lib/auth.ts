@@ -8,6 +8,22 @@ import { type Cookie, getCookies } from "@steipete/sweet-cookie";
 const LINKEDIN_URL = "https://www.linkedin.com";
 const LI_AT_COOKIE = "li_at";
 const JSESSIONID_COOKIE = "JSESSIONID";
+const DEBUG_AUTH = process.env.LI_DEBUG_AUTH === "1" || process.env.LI_DEBUG_AUTH === "true";
+
+type CredentialsError = Error & { warnings: string[] };
+
+function debugAuth(message: string): void {
+	if (!DEBUG_AUTH) {
+		return;
+	}
+	process.stderr.write(`[li][auth] ${message}\n`);
+}
+
+function createCredentialsError(message: string, warnings: string[]): CredentialsError {
+	const error = new Error(message) as CredentialsError;
+	error.warnings = warnings;
+	return error;
+}
 
 export interface LinkedInCredentials {
 	liAt: string;
@@ -66,6 +82,8 @@ async function extractBrowserCookies(
 	profileDir?: string,
 ): Promise<BrowserCookieResult> {
 	const warnings: string[] = [];
+	const browserList = browsers.join(", ");
+	debugAuth(`cookie-extract sources=${browserList} profile=${profileDir ? profileDir : "default"}`);
 
 	try {
 		const result = await getCookies({
@@ -83,13 +101,21 @@ async function extractBrowserCookies(
 		const allCookies =
 			result.cookies.length > 0 ? buildFullCookieHeader(result.cookies) : undefined;
 
+		debugAuth(
+			`cookie-result sources=${browserList} cookies=${result.cookies.length} li_at=${Boolean(
+				liAt,
+			)} jsessionid=${Boolean(jsessionId)} warnings=${result.warnings?.length ?? 0}`,
+		);
+
 		if (jsessionId) {
 			return { liAt, jsessionId: stripQuotes(jsessionId), allCookies, warnings };
 		}
 		return { liAt, jsessionId, allCookies, warnings };
-	} catch {
-		const browserList = browsers.join(", ");
-		return { warnings: [`Failed to extract cookies from: ${browserList}`] };
+	} catch (error) {
+		const errorMessage = error instanceof Error ? error.message : String(error);
+		const suffix = errorMessage ? ` (${errorMessage})` : "";
+		debugAuth(`cookie-error sources=${browserList} message=${errorMessage}`);
+		return { warnings: [`Failed to extract cookies from: ${browserList}${suffix}`] };
 	}
 }
 
@@ -106,6 +132,12 @@ export async function resolveCredentials(options: CredentialsOptions): Promise<C
 	// Check CLI flags first
 	const hasCliLiAt = Boolean(options.liAt);
 	const hasCliJsession = Boolean(options.jsessionId);
+
+	debugAuth(
+		`resolve-start cli=${hasCliLiAt || hasCliJsession} cookieSource=${
+			options.cookieSource?.join(",") ?? "none"
+		}`,
+	);
 
 	if (hasCliLiAt && hasCliJsession) {
 		source = "cli";
@@ -167,7 +199,12 @@ export async function resolveCredentials(options: CredentialsOptions): Promise<C
 
 	// Validate we have both credentials
 	if (!liAt || !jsessionId) {
-		throw new Error(
+		debugAuth(
+			`resolve-missing li_at=${Boolean(liAt)} jsessionid=${Boolean(
+				jsessionId,
+			)} warnings=${warnings.length}`,
+		);
+		throw createCredentialsError(
 			"LinkedIn credentials not found.\n\n" +
 				"Set environment variables:\n" +
 				"  export LINKEDIN_LI_AT=<your li_at cookie>\n" +
@@ -175,6 +212,7 @@ export async function resolveCredentials(options: CredentialsOptions): Promise<C
 				"Or use CLI flags:\n" +
 				"  --li-at <token> --jsessionid <token>\n\n" +
 				"Find these cookies at linkedin.com (DevTools > Application > Cookies)",
+			warnings,
 		);
 	}
 

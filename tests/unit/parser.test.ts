@@ -234,7 +234,7 @@ describe("parser", () => {
 		});
 
 		it("handles escaped quotes in names", () => {
-			const payload = `"viewName":"people-search-result","children":["$","p",null,{"children":[["$","$L61","text-attr-0",{"children":["Dan \\\"POP\\\" P."]}]]}],
+			const payload = `"viewName":"people-search-result","children":["$","p",null,{"children":[["$","$L61","text-attr-0",{"children":["Dan \\"POP\\" P."]}]]}],
 "url":"https://www.linkedin.com/in/danpapandrea/",
 "children":["Founder and Builder"]`;
 

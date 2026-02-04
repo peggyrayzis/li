@@ -7,7 +7,7 @@
  * - Profile URN: "urn:li:fsd_profile:ABC123"
  */
 
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { LinkedInApiError, type LinkedInClient } from "./client.js";
@@ -19,14 +19,10 @@ import { parseLinkedInUrl } from "./url-parser.js";
 const DEBUG_RECIPIENT =
 	process.env.LI_DEBUG_RECIPIENT === "1" || process.env.LI_DEBUG_RECIPIENT === "true";
 const RECIPIENT_CACHE_PATH =
-	process.env.LI_RECIPIENT_CACHE_PATH ??
-	path.join(os.tmpdir(), "li-recipient-cache.json");
+	process.env.LI_RECIPIENT_CACHE_PATH ?? path.join(os.tmpdir(), "li-recipient-cache.json");
 
 function isProfileViewEnabled(): boolean {
-	return (
-		process.env.LI_ENABLE_PROFILEVIEW === "1" ||
-		process.env.LI_ENABLE_PROFILEVIEW === "true"
-	);
+	return process.env.LI_ENABLE_PROFILEVIEW === "1" || process.env.LI_ENABLE_PROFILEVIEW === "true";
 }
 
 function debugRecipient(message: string): void {
@@ -321,9 +317,7 @@ async function lookupProfileByHtml(
 		}
 		const html = await response.text();
 		const decoded = html.replace(/\\u002F/g, "/");
-		const entityDecoded = decoded
-			.replace(/&quot;|&#34;|&#x22;/g, '"')
-			.replace(/&amp;/g, "&");
+		const entityDecoded = decoded.replace(/&quot;|&#34;|&#x22;/g, '"').replace(/&amp;/g, "&");
 		const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 		const escapedUsername = escapeRegex(username);
 		const idNearPublicIdentifier =
@@ -406,10 +400,7 @@ async function lookupProfileByHtml(
 		}
 
 		return {
-			username:
-				publicIdentifierMatch?.[1] ??
-				fallbackPublicIdentifierMatch?.[1] ??
-				username,
+			username: publicIdentifierMatch?.[1] ?? fallbackPublicIdentifierMatch?.[1] ?? username,
 			urn,
 		};
 	} catch {
