@@ -437,7 +437,7 @@ function buildConnectionsPaginationBody(startIndex: number, _pageSize: number): 
 function buildConnectionsOfQuery(connectionOfId: string, page = 1): URLSearchParams {
 	const params = new URLSearchParams({
 		origin: "FACETED_SEARCH",
-		connectionOf: `"${connectionOfId}"`,
+		connectionOf: JSON.stringify([connectionOfId]),
 		spellCorrectionEnabled: "true",
 	});
 	if (page > 1) {
@@ -532,7 +532,18 @@ function buildConnectionsOfSearchBody(startIndex: number, connectionOfId: string
 				connectionOf: [
 					{
 						filterKey: "connectionOf",
-						filterItemSingle: connectionOfId,
+						field: {
+							type: "com.linkedin.sdui.flagshipnav.search.FilterItemList",
+							value: {
+								field: {
+									type: "com.linkedin.sdui.components.core.BindingImpl",
+									value: {
+										key: "SEARCH_FILTER_connectionOf",
+										namespace: "MemoryNamespace",
+									},
+								},
+							},
+						},
 					},
 				],
 				pastCompany: [{ filterKey: "pastCompany" }],
@@ -554,6 +565,12 @@ function buildConnectionsOfSearchBody(startIndex: number, connectionOfId: string
 				spellCorrectionEnabled: true,
 			},
 			states: [
+				{
+					key: "SEARCH_FILTER_connectionOf",
+					namespace: "MemoryNamespace",
+					value: [connectionOfId],
+					originalProtoCase: "stringListValue",
+				},
 				{
 					key: pageKey,
 					namespace: "MemoryNamespace",

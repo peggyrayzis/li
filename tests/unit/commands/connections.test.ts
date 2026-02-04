@@ -132,7 +132,13 @@ describe("connections command", () => {
 			expect(mockFetch).toHaveBeenCalledWith(
 				expect.stringContaining("/flagship-web/search/results/people/?origin=FACETED_SEARCH"),
 				expect.objectContaining({
-					body: expect.stringContaining('"filterItemSingle":"ACoTARGET"'),
+					body: expect.stringContaining('"SEARCH_FILTER_connectionOf"'),
+				}),
+			);
+			expect(mockFetch).toHaveBeenCalledWith(
+				expect.any(String),
+				expect.objectContaining({
+					body: expect.stringContaining("ACoTARGET"),
 				}),
 			);
 		});
