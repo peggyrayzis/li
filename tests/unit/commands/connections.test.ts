@@ -130,15 +130,11 @@ describe("connections command", () => {
 			await connections(mockCredentials, { of: "peggyrayzis" });
 
 			expect(mockFetch).toHaveBeenCalledWith(
-				expect.stringContaining("/flagship-web/search/results/people/?origin=FACETED_SEARCH"),
+				expect.stringContaining(
+					"/flagship-web/search/results/people/?origin=FACETED_SEARCH&connectionOf=%22ACoTARGET%22",
+				),
 				expect.objectContaining({
-					body: expect.stringContaining('"SEARCH_FILTER_connectionOf"'),
-				}),
-			);
-			expect(mockFetch).toHaveBeenCalledWith(
-				expect.any(String),
-				expect.objectContaining({
-					body: expect.stringContaining("ACoTARGET"),
+					body: expect.stringContaining('"filterItemSingle":"ACoTARGET"'),
 				}),
 			);
 		});

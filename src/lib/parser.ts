@@ -370,6 +370,23 @@ export function parseConnectionsFromSearchStream(payload: string): NormalizedCon
 	const results: NormalizedConnection[] = [];
 	const seen = new Set<string>();
 
+	const collectActionSlotProfileIds = (value: string): Set<string> => {
+		const ids = new Set<string>();
+		const actionSlotsRegex = /"actionSlots":\{[\s\S]*?\}/g;
+		const slotRegex = /"([A-Za-z0-9_-]+)":"SearchResults\1"/g;
+		let match: RegExpExecArray | null;
+		while ((match = actionSlotsRegex.exec(value)) !== null) {
+			const block = match[0];
+			let slotMatch: RegExpExecArray | null;
+			while ((slotMatch = slotRegex.exec(block)) !== null) {
+				ids.add(slotMatch[1]);
+			}
+		}
+		return ids;
+	};
+
+	const allowedProfileIds = collectActionSlotProfileIds(normalizedPayload);
+
 	const decodeSearchText = (value: string): string => {
 		if (!value) {
 			return "";
@@ -449,6 +466,10 @@ export function parseConnectionsFromSearchStream(payload: string): NormalizedCon
 		if (urlThenProfileMatch?.[1]) {
 			return urlThenProfileMatch[1];
 		}
+		const componentKeyMatch = chunk.match(/"componentKey":"SearchResults([^"]+)"/);
+		if (componentKeyMatch?.[1] && /^ACo[A-Za-z0-9_-]+$/.test(componentKeyMatch[1])) {
+			return componentKeyMatch[1];
+		}
 		const anyProfileMatch = chunk.match(/"profileId":"([^"]+)"/);
 		return anyProfileMatch?.[1] ?? "";
 	};
@@ -471,6 +492,10 @@ export function parseConnectionsFromSearchStream(payload: string): NormalizedCon
 			continue;
 		}
 		const profileId = extractProfileId(chunk, username);
+		if (allowedProfileIds.size > 0 && (!profileId || !allowedProfileIds.has(profileId))) {
+			index = start + marker.length;
+			continue;
+		}
 
 		let name = "";
 		let rawName = "";

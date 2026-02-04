@@ -291,20 +291,68 @@ async function lookupProfileByHtml(
 			}
 		}
 		const decoded = html.replace(/\\u002F/g, "/");
+		const entityDecoded = decoded
+			.replace(/&quot;|&#34;|&#x22;/g, '"')
+			.replace(/&amp;/g, "&");
+		const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+		const escapedUsername = escapeRegex(username);
+		const idNearPublicIdentifier =
+			entityDecoded.match(
+				new RegExp(
+					`"publicIdentifier":"${escapedUsername}"[\\s\\S]{0,1200}?"profileId":"(ACo[A-Za-z0-9_-]+)"`,
+				),
+			)?.[1] ??
+			entityDecoded.match(
+				new RegExp(
+					`"profileId":"(ACo[A-Za-z0-9_-]+)"[\\s\\S]{0,1200}?"publicIdentifier":"${escapedUsername}"`,
+				),
+			)?.[1] ??
+			"";
+		const urnNearPublicIdentifierMatch =
+			entityDecoded.match(
+				new RegExp(
+					`"publicIdentifier":"${escapedUsername}"[\\s\\S]{0,1200}?(urn:li:(?:fsd_profile|fs_miniProfile):ACo[A-Za-z0-9_-]+)`,
+				),
+			)?.[1] ??
+			entityDecoded.match(
+				new RegExp(
+					`(urn:li:(?:fsd_profile|fs_miniProfile):ACo[A-Za-z0-9_-]+)[\\s\\S]{0,1200}?"publicIdentifier":"${escapedUsername}"`,
+				),
+			)?.[1] ??
+			"";
 
-		const profileUrnMatches = decoded.match(/urn:li:fsd_profile:[^"\\s]+/g) ?? [];
-		const profileIdMatch = decoded.match(/"profileId":"([^"]+)"/);
-		const memberUrnMatches = decoded.match(/urn:li:member:[^"\\s]+/g) ?? [];
+		const isValidProfileUrn = (value: string): boolean =>
+			/^urn:li:fsd_profile:ACo[A-Za-z0-9_-]+$/.test(value);
+		const isValidMemberUrn = (value: string): boolean => /^urn:li:member:\d+$/.test(value);
+
+		const profileUrnMatches =
+			entityDecoded.match(/urn:li:(?:fsd_profile|fs_miniProfile):ACo[A-Za-z0-9_-]+/g) ?? [];
+		const normalizedProfileUrns = profileUrnMatches
+			.map((value) => normalizeProfileUrn(value))
+			.filter(isValidProfileUrn);
+		const profileIdMatch = entityDecoded.match(/"profileId":"(ACo[A-Za-z0-9_-]+)"/);
+		const memberUrnMatches = entityDecoded.match(/urn:li:member:\d+/g) ?? [];
+		const normalizedMemberUrns = memberUrnMatches.filter(isValidMemberUrn);
 		const longestProfileUrn =
-			profileUrnMatches.length > 0
-				? profileUrnMatches.sort((a, b) => b.length - a.length)[0]
+			normalizedProfileUrns.length > 0
+				? normalizedProfileUrns.sort((a, b) => b.length - a.length)[0]
 				: undefined;
 		const longestMemberUrn =
-			memberUrnMatches.length > 0
-				? memberUrnMatches.sort((a, b) => b.length - a.length)[0]
+			normalizedMemberUrns.length > 0
+				? normalizedMemberUrns.sort((a, b) => b.length - a.length)[0]
 				: undefined;
-		const publicIdentifierMatch = decoded.match(/"publicIdentifier":"([^"]+)"/);
+		const publicIdentifierMatch = entityDecoded.match(
+			new RegExp(`"publicIdentifier":"(${escapedUsername})"`),
+		);
+		const fallbackPublicIdentifierMatch = entityDecoded.match(/"publicIdentifier":"([^"]+)"/);
+		const preferredProfileUrn = urnNearPublicIdentifierMatch
+			? normalizeProfileUrn(urnNearPublicIdentifierMatch)
+			: "";
 		const urn =
+			(idNearPublicIdentifier ? `urn:li:fsd_profile:${idNearPublicIdentifier}` : undefined) ??
+			(preferredProfileUrn && isValidProfileUrn(preferredProfileUrn)
+				? preferredProfileUrn
+				: undefined) ??
 			(profileIdMatch ? `urn:li:fsd_profile:${profileIdMatch[1]}` : undefined) ??
 			longestProfileUrn ??
 			longestMemberUrn ??
@@ -315,6 +363,9 @@ async function lookupProfileByHtml(
 		}
 
 		debugRecipient(`profileHtml urn=${urn} username=${username}`);
+		if (idNearPublicIdentifier || preferredProfileUrn) {
+			debugRecipient(`profileHtml matched publicIdentifier username=${username}`);
+		}
 
 		if (urn.startsWith("urn:li:member:")) {
 			try {
@@ -325,7 +376,10 @@ async function lookupProfileByHtml(
 		}
 
 		return {
-			username: publicIdentifierMatch?.[1] ?? username,
+			username:
+				publicIdentifierMatch?.[1] ??
+				fallbackPublicIdentifierMatch?.[1] ??
+				username,
 			urn,
 		};
 	} catch {

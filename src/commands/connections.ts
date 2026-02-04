@@ -47,6 +47,7 @@ const FLAGSHIP_SEARCH_PAGE_INSTANCE =
 const FLAGSHIP_TRACK =
 	'{"clientVersion":"0.2.3802","mpVersion":"0.2.3802","osName":"web","timezoneOffset":-5,"timezone":"America/New_York","deviceFormFactor":"DESKTOP","mpName":"web","displayDensity":2,"displayWidth":3024,"displayHeight":1964}';
 const CONNECTIONS_OF_PAGE_SIZE = 10;
+const CONNECTIONS_OF_ORIGIN = "FACETED_SEARCH";
 const FAST_DELAY_MIN_MS = 200;
 const FAST_DELAY_MAX_MS = 600;
 const DEBUG_CONNECTIONS =
@@ -56,6 +57,7 @@ const DEBUG_CONNECTIONS_DUMP =
 	process.env.LI_DEBUG_CONNECTIONS_DUMP === "true";
 const DISABLE_PROGRESS =
 	process.env.LI_NO_PROGRESS === "1" || process.env.LI_NO_PROGRESS === "true";
+const PROFILE_ID_PATTERN = /^ACo[A-Za-z0-9_-]+$/;
 
 type ProgressReporter = {
 	update: (info: { fetched: number; page: number; targetCount: number | null }) => void;
@@ -89,6 +91,11 @@ export async function connections(
 		? await resolveRecipient(client, connectionOfIdentifier)
 		: null;
 	const connectionOfId = connectionOf ? extractIdFromUrn(connectionOf.urn) : null;
+	if (connectionOfId && !PROFILE_ID_PATTERN.test(connectionOfId)) {
+		throw new Error(
+			`Invalid profile id resolved for --of (${connectionOfId}). Try again or pass a profile URL/URN.`,
+		);
+	}
 	const referer = connectionOfId
 		? buildConnectionsOfReferer(connectionOfId, 1)
 		: FLAGSHIP_CONNECTIONS_REFERER;
@@ -436,8 +443,8 @@ function buildConnectionsPaginationBody(startIndex: number, _pageSize: number): 
 
 function buildConnectionsOfQuery(connectionOfId: string, page = 1): URLSearchParams {
 	const params = new URLSearchParams({
-		origin: "FACETED_SEARCH",
-		connectionOf: JSON.stringify([connectionOfId]),
+		origin: CONNECTIONS_OF_ORIGIN,
+		connectionOf: JSON.stringify(connectionOfId),
 		spellCorrectionEnabled: "true",
 	});
 	if (page > 1) {
@@ -512,7 +519,7 @@ function buildConnectionsOfSearchBody(startIndex: number, connectionOfId: string
 		shouldHideMobileTopNavBarDivider: false,
 		requestedArguments: {
 			payload: {
-				origin: "FACETED_SEARCH",
+				origin: CONNECTIONS_OF_ORIGIN,
 				network: [{ filterKey: "network" }],
 				geoUrn: [{ filterKey: "geoUrn" }],
 				activelyHiringForJobTitles: [{ filterKey: "-100" }],
@@ -532,18 +539,7 @@ function buildConnectionsOfSearchBody(startIndex: number, connectionOfId: string
 				connectionOf: [
 					{
 						filterKey: "connectionOf",
-						field: {
-							type: "com.linkedin.sdui.flagshipnav.search.FilterItemList",
-							value: {
-								field: {
-									type: "com.linkedin.sdui.components.core.BindingImpl",
-									value: {
-										key: "SEARCH_FILTER_connectionOf",
-										namespace: "MemoryNamespace",
-									},
-								},
-							},
-						},
+						filterItemSingle: connectionOfId,
 					},
 				],
 				pastCompany: [{ filterKey: "pastCompany" }],
@@ -565,12 +561,6 @@ function buildConnectionsOfSearchBody(startIndex: number, connectionOfId: string
 				spellCorrectionEnabled: true,
 			},
 			states: [
-				{
-					key: "SEARCH_FILTER_connectionOf",
-					namespace: "MemoryNamespace",
-					value: [connectionOfId],
-					originalProtoCase: "stringListValue",
-				},
 				{
 					key: pageKey,
 					namespace: "MemoryNamespace",
