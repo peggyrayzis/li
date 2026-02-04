@@ -1,5 +1,5 @@
 export function buildCookieHeader(liAt: string, jsessionId: string): string {
-	return `li_${"at="}${liAt}; ${"JSESSION"}${'ID="' + jsessionId + '"'}`;
+	return `li_${"at="}${liAt}; ${"JSESSION"}${`ID="${jsessionId}"`}`;
 }
 
 export const LI_AT_COOKIE_NAME = ["li", "at"].join("_");

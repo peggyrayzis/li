@@ -378,10 +378,18 @@ export function parseConnectionsFromSearchStream(payload: string): NormalizedCon
 		const actionSlotsRegex = /"actionSlots":\{[\s\S]*?\}/g;
 		const slotRegex = /"([A-Za-z0-9_-]+)":"SearchResults\1"/g;
 		let match: RegExpExecArray | null;
-		while ((match = actionSlotsRegex.exec(value)) !== null) {
+		for (;;) {
+			match = actionSlotsRegex.exec(value);
+			if (!match) {
+				break;
+			}
 			const block = match[0];
 			let slotMatch: RegExpExecArray | null;
-			while ((slotMatch = slotRegex.exec(block)) !== null) {
+			for (;;) {
+				slotMatch = slotRegex.exec(block);
+				if (!slotMatch) {
+					break;
+				}
 				ids.add(slotMatch[1]);
 			}
 		}
@@ -503,14 +511,14 @@ export function parseConnectionsFromSearchStream(payload: string): NormalizedCon
 		}
 
 		let name = "";
-		let rawName = "";
+		let _rawName = "";
 		const titleIndex = chunk.indexOf("search-result-lockup-title");
 		if (titleIndex !== -1) {
 			const titleChunk = chunk.slice(titleIndex, titleIndex + 7000);
 			const candidate = pickBestCandidate(collectTextCandidates(titleChunk));
 			if (candidate) {
 				name = candidate.decoded;
-				rawName = candidate.raw;
+				_rawName = candidate.raw;
 			}
 		}
 
@@ -518,7 +526,7 @@ export function parseConnectionsFromSearchStream(payload: string): NormalizedCon
 			const candidate = pickBestCandidate(collectTextCandidates(chunk));
 			if (candidate) {
 				name = candidate.decoded;
-				rawName = candidate.raw;
+				_rawName = candidate.raw;
 			}
 		}
 
