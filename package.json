@@ -1,6 +1,6 @@
 {
   "name": "@peggyrayzis/li",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "The LinkedIn CLI for agents",
   "type": "module",
   "packageManager": "pnpm@9.1.1",
@@ -18,10 +18,12 @@
     "typecheck": "tsc --noEmit",
     "security": "bash scripts/security-check.sh",
     "check": "npm run lint && npm run typecheck && npm run test",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "changeset publish",
     "hooks:install": "bash scripts/install-githooks.sh",
     "prepare": "npm run hooks:install",
-    "prepublishOnly": "pnpm run build",
-    "postversion": "git push && git push --tags"
+    "prepublishOnly": "pnpm run build"
   },
   "keywords": [
     "linkedin",
@@ -46,6 +48,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.13",
+    "@changesets/cli": "^2.29.8",
     "@types/node": "^25.2.0",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3",
