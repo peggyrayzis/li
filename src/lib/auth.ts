@@ -90,7 +90,7 @@ async function extractBrowserCookies(
 			url: LINKEDIN_URL,
 			browsers: browsers,
 			profile: profileDir,
-			timeoutMs: 30000
+			timeoutMs: 30000,
 		});
 
 		if (result.warnings) {

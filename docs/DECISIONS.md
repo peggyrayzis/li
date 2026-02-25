@@ -3,6 +3,7 @@ Last Updated: 2026-02-25
 
 | Date | Decision | Status | Rationale | Consequences | Supersedes |
 | --- | --- | --- | --- | --- | --- |
+| 2026-02-25 | Temporarily patch `@steipete/sweet-cookie@0.1.0` in-repo | active | Upstream release does not yet include Chrome macOS timeout propagation and Node 22 Chrome sqlite overflow handling | `pnpm.patchedDependencies` now carries a local patch that must be removed once upstream releases fixes | n/a |
 | 2026-02-25 | Adopt repository operating system with multi-agent roles and PR-first enforcement | active | Reduce process drift and make quality/security checks mechanically enforced | Adds standardized docs/scripts/hooks/templates and CI checks | n/a |
 | 2026-02-25 | GitHub Issues become the only task tracker | active | Keep planning and delivery in one auditable system | No parallel `docs/TASKS.md` or duplicate trackers | informal task notes |
 | 2026-02-25 | Managed docs moved to `docs/` and stale root markdown retired | active | Remove conflicting guidance and normalize discoverability | `CLAUDE.md`, root `SPEC.md`, and root `DECISIONS.md` are retired | root markdown process docs |
