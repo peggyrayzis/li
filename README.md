@@ -72,6 +72,8 @@ li connections --all              # Fetch all (paginated)
 li connections --of peggyrayzis   # View someone else's connections
 ```
 
+Note: `li connections --of ...` depends on LinkedIn search pagination behavior. LinkedIn may cap results (often around ~20) even when more pages are requested.
+
 ### Invitations
 
 ```bash
