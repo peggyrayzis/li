@@ -6,6 +6,7 @@
 import type { LinkedInCredentials } from "../lib/auth.js";
 import { LinkedInClient } from "../lib/client.js";
 import { buildHeaders } from "../lib/headers.js";
+import { buildLiTrackHeader } from "../lib/li-track.js";
 import {
 	parseConnectionsFromFlagshipRsc,
 	parseConnectionsFromSearchHtml,
@@ -46,8 +47,6 @@ const FLAGSHIP_PAGE_INSTANCE =
 	"urn:li:page:d_flagship3_people_connections;fkBHD5OCSzq7lUUo2+5Oiw==";
 const FLAGSHIP_SEARCH_PAGE_INSTANCE =
 	"urn:li:page:d_flagship3_search_srp_people;4GLXsZt9SMWi+zWnoT3o9w==";
-const FLAGSHIP_TRACK =
-	'{"clientVersion":"0.2.3802","mpVersion":"0.2.3802","osName":"web","timezoneOffset":-5,"timezone":"America/New_York","deviceFormFactor":"DESKTOP","mpName":"web","displayDensity":2,"displayWidth":3024,"displayHeight":1964}';
 const CONNECTIONS_OF_PAGE_SIZE = 10;
 const CONNECTIONS_OF_ORIGIN = "FACETED_SEARCH";
 const FAST_DELAY_MIN_MS = 200;
@@ -121,6 +120,7 @@ export async function connections(
 	const skip = connectionOfId ? start - effectiveStart : 0;
 
 	const pageInstance = connectionOfId ? FLAGSHIP_SEARCH_PAGE_INSTANCE : FLAGSHIP_PAGE_INSTANCE;
+	const liTrack = buildLiTrackHeader();
 	const headers = {
 		...buildHeaders(credentials),
 		Accept: "*/*",
@@ -128,7 +128,7 @@ export async function connections(
 		Origin: "https://www.linkedin.com",
 		Referer: referer,
 		"X-Li-Page-Instance": pageInstance,
-		"X-Li-Track": FLAGSHIP_TRACK,
+		"X-Li-Track": liTrack,
 		...(connectionOfId ? { "X-Li-Rsc-Stream": "true" } : {}),
 	};
 

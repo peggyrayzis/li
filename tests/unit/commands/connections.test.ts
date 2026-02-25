@@ -3,6 +3,22 @@ import { connections } from "../../../src/commands/connections.js";
 import type { LinkedInCredentials } from "../../../src/lib/auth.js";
 import { buildCookieHeader } from "../../helpers/cookies.js";
 
+function expectLocalLiTrackHeader(headers: unknown): void {
+	const record = headers as Record<string, string>;
+	const raw = record["X-Li-Track"];
+	expect(typeof raw).toBe("string");
+
+	const parsed = JSON.parse(raw) as Record<string, unknown>;
+	const expectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+	const expectedOffset = Number((-new Date().getTimezoneOffset() / 60).toFixed(2));
+
+	expect(parsed.timezone).toBe(expectedTimezone);
+	expect(parsed.timezoneOffset).toBe(expectedOffset);
+	expect(parsed).not.toHaveProperty("displayWidth");
+	expect(parsed).not.toHaveProperty("displayHeight");
+	expect(parsed).not.toHaveProperty("displayDensity");
+}
+
 function buildRscPayload(startIndex: number, count: number): string {
 	const entries: string[] = [];
 	for (let index = 0; index < count; index += 1) {
@@ -183,6 +199,15 @@ describe("connections command", () => {
 			const parsed = JSON.parse(result);
 
 			expect(parsed.paging.total).toBeNull();
+		});
+
+		it("sends local X-Li-Track header metadata", async () => {
+			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(""));
+
+			await connections(mockCredentials);
+
+			const [, options] = mockFetch.mock.calls[0] as [string, { headers?: unknown }];
+			expectLocalLiTrackHeader(options.headers);
 		});
 	});
 
