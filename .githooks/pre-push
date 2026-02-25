@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+cd "$ROOT_DIR"
+
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+if [[ "$CURRENT_BRANCH" == "main" && "${PROJECT_ALLOW_MAIN_PUSH:-0}" != "1" ]]; then
+	echo "Push to main is blocked. Set PROJECT_ALLOW_MAIN_PUSH=1 to override." >&2
+	exit 1
+fi
+
+npm run check
+npm run security

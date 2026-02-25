@@ -1,0 +1,9 @@
+multi_agent = true
+max_threads = 4
+max_depth = 2
+
+[roles]
+explorer = ".codex/agents/explorer.toml"
+worker = ".codex/agents/worker.toml"
+monitor = ".codex/agents/monitor.toml"
+reviewer = ".codex/agents/reviewer.toml"
