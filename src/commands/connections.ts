@@ -28,7 +28,6 @@ export interface ConnectionsOptions {
 	fast?: boolean;
 	noProgress?: boolean;
 	network?: NetworkDegree[];
-	experimentalSearchDash?: boolean;
 }
 
 interface ConnectionsResult {
@@ -43,8 +42,6 @@ interface ConnectionsResult {
 const FLAGSHIP_CONNECTIONS_URL =
 	"https://www.linkedin.com/flagship-web/rsc-action/actions/pagination?sduiid=com.linkedin.sdui.pagers.mynetwork.connectionsList";
 const FLAGSHIP_CONNECTIONS_OF_URL = "https://www.linkedin.com/flagship-web/search/results/people/";
-const VOYAGER_SEARCH_DASH_CLUSTERS_URL =
-	"https://www.linkedin.com/voyager/api/search/dash/clusters";
 const FLAGSHIP_CONNECTIONS_REFERER =
 	"https://www.linkedin.com/mynetwork/invite-connect/connections/";
 const FLAGSHIP_PAGE_INSTANCE =
@@ -61,9 +58,6 @@ const DEBUG_CONNECTIONS =
 	process.env.LI_DEBUG_CONNECTIONS === "1" || process.env.LI_DEBUG_CONNECTIONS === "true";
 const DEBUG_CONNECTIONS_DUMP =
 	process.env.LI_DEBUG_CONNECTIONS_DUMP === "1" || process.env.LI_DEBUG_CONNECTIONS_DUMP === "true";
-const EXPERIMENTAL_CONNECTIONS_OF_SEARCH_DASH =
-	process.env.LI_EXPERIMENTAL_CONNECTIONS_OF_SEARCH_DASH === "1" ||
-	process.env.LI_EXPERIMENTAL_CONNECTIONS_OF_SEARCH_DASH === "true";
 const PROFILE_IDENTIFIER_PATTERN = /^[A-Za-z0-9_-]+$/;
 const DEFAULT_NETWORK_DEGREES: NetworkDegree[] = ["1st", "2nd", "3rd"];
 const NETWORK_FILTERS: Record<NetworkDegree, string> = {
@@ -155,76 +149,34 @@ export async function connections(
 				label: connectionOfId ? "connections-of" : "connections",
 			})
 		: null;
-	const useExperimentalSearchDash =
-		Boolean(connectionOfId) &&
-		(options.experimentalSearchDash ?? EXPERIMENTAL_CONNECTIONS_OF_SEARCH_DASH);
 
 	let fetchResult: { connections: NormalizedConnection[]; hitMaxIterations: boolean } = {
 		connections: [],
 		hitMaxIterations: false,
 	};
 	try {
-		if (useExperimentalSearchDash && connectionOfId) {
-			try {
-				fetchResult = await fetchConnectionsFromSearchDashClusters(
-					client,
-					connectionOfId,
-					effectiveStart,
-					count,
-					skip,
-					networkFilters,
-					progress?.update,
-				);
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				console.error(
-					`Warning: experimental --of search backend failed (${message}); falling back to default backend.`,
-				);
-				fetchResult = await fetchConnectionsFromFlagship(
-					client,
-					requestUrl,
-					headers,
-					effectiveStart,
-					count,
-					buildBody,
-					skip,
-					(startIndex: number) => {
+		fetchResult = await fetchConnectionsFromFlagship(
+			client,
+			requestUrl,
+			headers,
+			effectiveStart,
+			count,
+			buildBody,
+			skip,
+			connectionOfId
+				? (startIndex: number) => {
 						const page = Math.floor(startIndex / CONNECTIONS_OF_PAGE_SIZE) + 1;
 						return {
 							url: buildConnectionsOfRequestUrl(connectionOfId, page, networkFilters),
 							referer: buildConnectionsOfReferer(connectionOfId, page, networkFilters),
 						};
-					},
-					CONNECTIONS_OF_PAGE_SIZE,
-					true,
-					progress?.update,
-					pageBindingRef,
-				);
-			}
-		} else {
-			fetchResult = await fetchConnectionsFromFlagship(
-				client,
-				requestUrl,
-				headers,
-				effectiveStart,
-				count,
-				buildBody,
-				skip,
-				connectionOfId
-					? (startIndex: number) => {
-							const page = Math.floor(startIndex / CONNECTIONS_OF_PAGE_SIZE) + 1;
-							return {
-								url: buildConnectionsOfRequestUrl(connectionOfId, page, networkFilters),
-								referer: buildConnectionsOfReferer(connectionOfId, page, networkFilters),
-							};
-						}
-					: undefined,
-				connectionOfId ? CONNECTIONS_OF_PAGE_SIZE : undefined,
-				Boolean(connectionOfId),
-				progress?.update,
-				connectionOfId ? pageBindingRef : undefined,
-			);
-		}
+					}
+				: undefined,
+			connectionOfId ? CONNECTIONS_OF_PAGE_SIZE : undefined,
+			Boolean(connectionOfId),
+			progress?.update,
+			connectionOfId ? pageBindingRef : undefined,
+		);
 	} finally {
 		progress?.done(fetchResult.connections.length);
 	}
@@ -441,238 +393,6 @@ async function fetchConnectionsFromFlagship(
 	}
 
 	return { connections, hitMaxIterations: iterations >= maxIterations };
-}
-
-async function fetchConnectionsFromSearchDashClusters(
-	client: LinkedInClient,
-	connectionOfId: string,
-	start: number,
-	count: number | null,
-	skip: number,
-	networkFilters?: string[],
-	onProgress?: ProgressReporter["update"],
-): Promise<{ connections: NormalizedConnection[]; hitMaxIterations: boolean }> {
-	const connections: NormalizedConnection[] = [];
-	const seen = new Set<string>();
-	const targetCount = count ?? Number.POSITIVE_INFINITY;
-	const pageSize = CONNECTIONS_OF_PAGE_SIZE;
-	const maxIterations = count === null ? 1000 : Math.max(20, Math.ceil(targetCount / pageSize) + 5);
-	let currentStart = start;
-	let iterations = 0;
-	let remainingSkip = Math.max(0, skip);
-	let stallPages = 0;
-
-	while (connections.length < targetCount && iterations < maxIterations) {
-		const pageIndex = iterations + 1;
-		const requestUrl = buildSearchDashClustersRequestUrl(
-			connectionOfId,
-			currentStart,
-			Math.min(
-				pageSize,
-				Number.isFinite(targetCount) ? Math.max(1, targetCount - connections.length) : pageSize,
-			),
-			networkFilters,
-		);
-		if (DEBUG_CONNECTIONS) {
-			process.stderr.write(
-				`[li][connections][experimental] url=${requestUrl} start=${currentStart} pageSize=${pageSize}\n`,
-			);
-		}
-
-		const response = await client.requestAbsolute(requestUrl, {
-			method: "GET",
-		});
-		const payload = (await response.json()) as unknown;
-		const pageConnections = parseConnectionsFromSearchDashClustersPayload(payload);
-
-		if (DEBUG_CONNECTIONS) {
-			process.stderr.write(
-				`[li][connections][experimental] parsed=${pageConnections.length} start=${currentStart}\n`,
-			);
-		}
-
-		// Treat an empty first page as an endpoint-shape failure and fallback to default backend.
-		if (pageConnections.length === 0 && iterations === 0) {
-			throw new Error("no parseable search results in first page");
-		}
-		if (pageConnections.length === 0) {
-			break;
-		}
-
-		let added = 0;
-		for (const connection of pageConnections) {
-			if (remainingSkip > 0) {
-				remainingSkip -= 1;
-				continue;
-			}
-			if (seen.has(connection.username)) {
-				continue;
-			}
-			seen.add(connection.username);
-			connections.push(connection);
-			added += 1;
-			if (connections.length >= targetCount) {
-				break;
-			}
-		}
-
-		if (added === 0 && remainingSkip === 0) {
-			stallPages += 1;
-			if (stallPages >= MAX_STALL_PAGES) {
-				break;
-			}
-		} else if (added > 0) {
-			stallPages = 0;
-		}
-
-		onProgress?.({
-			fetched: connections.length,
-			page: pageIndex,
-			targetCount: count,
-		});
-
-		if (pageConnections.length < pageSize) {
-			break;
-		}
-		currentStart += pageSize;
-		iterations += 1;
-	}
-
-	return {
-		connections,
-		hitMaxIterations: iterations >= maxIterations,
-	};
-}
-
-function buildSearchDashClustersRequestUrl(
-	connectionOfId: string,
-	start: number,
-	count: number,
-	networkFilters?: string[],
-): string {
-	const params = new URLSearchParams({
-		q: "all",
-		start: String(start),
-		count: String(count),
-		query: buildSearchDashClustersQueryExpression(connectionOfId, networkFilters),
-	});
-	return `${VOYAGER_SEARCH_DASH_CLUSTERS_URL}?${params.toString()}`;
-}
-
-function buildSearchDashClustersQueryExpression(
-	connectionOfId: string,
-	networkFilters?: string[],
-): string {
-	const queryParameters = [
-		"(key:resultType,value:List(PEOPLE))",
-		`(key:connectionOf,value:List(${connectionOfId}))`,
-	];
-	if (networkFilters && networkFilters.length > 0) {
-		queryParameters.push(`(key:network,value:List(${networkFilters.join(",")}))`);
-	}
-	return `(origin:${CONNECTIONS_OF_ORIGIN},queryParameters:List(${queryParameters.join(
-		",",
-	)}),includeFiltersInResponse:false)`;
-}
-
-function parseConnectionsFromSearchDashClustersPayload(payload: unknown): NormalizedConnection[] {
-	const root =
-		payload && typeof payload === "object" && !Array.isArray(payload)
-			? (payload as Record<string, unknown>)
-			: {};
-	const included = Array.isArray(root.included) ? root.included : [];
-	const connections: NormalizedConnection[] = [];
-	const seen = new Set<string>();
-
-	for (const item of included) {
-		if (!item || typeof item !== "object" || Array.isArray(item)) {
-			continue;
-		}
-		const entry = item as Record<string, unknown>;
-		const miniProfile =
-			entry.miniProfile &&
-			typeof entry.miniProfile === "object" &&
-			!Array.isArray(entry.miniProfile)
-				? (entry.miniProfile as Record<string, unknown>)
-				: undefined;
-
-		const publicIdentifier =
-			readNonEmptyString(entry.publicIdentifier) ??
-			readNonEmptyString(miniProfile?.publicIdentifier) ??
-			extractProfileUsernameFromUrl(
-				readNonEmptyString(entry.navigationUrl) ??
-					readNonEmptyString(entry.publicProfileUrl) ??
-					readNonEmptyString(miniProfile?.publicProfileUrl) ??
-					"",
-			);
-		if (!publicIdentifier || seen.has(publicIdentifier)) {
-			continue;
-		}
-
-		const firstName =
-			readNonEmptyString(entry.firstName) ?? readNonEmptyString(miniProfile?.firstName) ?? "";
-		const lastName =
-			readNonEmptyString(entry.lastName) ?? readNonEmptyString(miniProfile?.lastName) ?? "";
-		const headline =
-			readNonEmptyString(entry.occupation) ??
-			readNonEmptyString(entry.headline) ??
-			readNestedText(entry.headline) ??
-			readNestedText(entry.subline) ??
-			"";
-		const profileUrl =
-			readNonEmptyString(entry.publicProfileUrl) ??
-			readNonEmptyString(miniProfile?.publicProfileUrl) ??
-			`https://www.linkedin.com/in/${publicIdentifier}`;
-		const urn =
-			readNonEmptyString(entry.entityUrn) ?? readNonEmptyString(miniProfile?.entityUrn) ?? "";
-		const connectionDegree =
-			readNonEmptyString(entry.connectionDistance) ??
-			readNonEmptyString(entry.distance) ??
-			undefined;
-
-		seen.add(publicIdentifier);
-		connections.push({
-			urn,
-			username: publicIdentifier,
-			firstName,
-			lastName,
-			headline,
-			profileUrl,
-			...(connectionDegree ? { connectionDegree } : {}),
-		});
-	}
-
-	return connections;
-}
-
-function readNonEmptyString(value: unknown): string | undefined {
-	if (typeof value !== "string") {
-		return undefined;
-	}
-	const trimmed = value.trim();
-	return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function readNestedText(value: unknown): string | undefined {
-	if (!value || typeof value !== "object" || Array.isArray(value)) {
-		return undefined;
-	}
-	return readNonEmptyString((value as Record<string, unknown>).text);
-}
-
-function extractProfileUsernameFromUrl(url: string): string | undefined {
-	if (!url) {
-		return undefined;
-	}
-	const match = url.match(/linkedin\.com\/in\/([^/?#]+)/i);
-	if (!match?.[1]) {
-		return undefined;
-	}
-	try {
-		return decodeURIComponent(match[1]);
-	} catch {
-		return match[1];
-	}
 }
 
 function createProgressReporter(options: {
