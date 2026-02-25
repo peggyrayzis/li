@@ -54,7 +54,7 @@ Last Updated: 2026-02-25
   - docs checks (`bash scripts/check-docs.sh`)
   - core checks (`npm run check`)
   - security checks (`npm run security`)
-  - optional smoke checks when present
+  - smoke checks (`bash scripts/smoke.sh`) when enabled in CI; run this script locally for auth/session or end-to-end CLI changes before opening a PR
 
 ## Security Checklist
 - No secrets, session cookies, or private keys in tracked files.
