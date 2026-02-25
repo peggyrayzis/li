@@ -12,6 +12,7 @@ import {
 	parseConnectionsFromSearchHtml,
 	parseConnectionsFromSearchStream,
 } from "../lib/parser.js";
+import { resolveRecipient } from "../lib/recipient.js";
 import type { NormalizedConnection } from "../lib/types.js";
 import { extractIdFromUrn, parseLinkedInUrl } from "../lib/url-parser.js";
 import { formatConnection, formatPagination } from "../output/human.js";
@@ -92,7 +93,7 @@ export async function connections(
 	const count = fetchAll ? null : Math.max(0, requestedCount);
 	const connectionOfIdentifier = options.of?.trim();
 	const connectionOfId = connectionOfIdentifier
-		? normalizeConnectionOfIdentifier(connectionOfIdentifier)
+		? await normalizeConnectionOfIdentifier(client, connectionOfIdentifier)
 		: null;
 	const networkDegrees = connectionOfId
 		? options.network && options.network.length > 0
@@ -465,7 +466,12 @@ function buildConnectionsPaginationBody(
 	};
 }
 
-function normalizeConnectionOfIdentifier(identifier: string): string {
+const PROFILE_ID_PATTERN = /^ACo[A-Za-z0-9_-]+$/;
+
+async function normalizeConnectionOfIdentifier(
+	client: LinkedInClient,
+	identifier: string,
+): Promise<string> {
 	const parsed = parseLinkedInUrl(identifier);
 	if (!parsed || parsed.type !== "profile") {
 		throw new Error(
@@ -473,10 +479,10 @@ function normalizeConnectionOfIdentifier(identifier: string): string {
 		);
 	}
 
-	const normalized = parsed.identifier.startsWith("urn:li:")
-		? extractIdFromUrn(parsed.identifier)
-		: parsed.identifier;
-	const value = normalized.trim();
+	const trimmedIdentifier = parsed.identifier.trim();
+	const value = trimmedIdentifier.startsWith("urn:li:")
+		? extractIdFromUrn(trimmedIdentifier).trim()
+		: trimmedIdentifier;
 
 	if (!value || !PROFILE_IDENTIFIER_PATTERN.test(value)) {
 		throw new Error(
@@ -484,7 +490,19 @@ function normalizeConnectionOfIdentifier(identifier: string): string {
 		);
 	}
 
-	return value;
+	if (trimmedIdentifier.startsWith("urn:li:") || PROFILE_ID_PATTERN.test(value)) {
+		return value;
+	}
+
+	const resolved = await resolveRecipient(client, identifier);
+	const resolvedId = extractIdFromUrn(resolved.urn).trim();
+	if (!resolvedId || !PROFILE_IDENTIFIER_PATTERN.test(resolvedId)) {
+		throw new Error(
+			`Could not resolve --of value: ${identifier}. Provide a profile username, profile URL, or profile URN.`,
+		);
+	}
+
+	return resolvedId;
 }
 
 function buildConnectionsOfQuery(

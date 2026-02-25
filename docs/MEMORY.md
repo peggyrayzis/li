@@ -22,3 +22,8 @@ Append-only log. Add entries; do not rewrite historical entries except typo fixe
 - Correction: release automation depended on manually pushed `v*` tags, so npm publishes could happen without corresponding GitHub releases or changelog history.
 - Fix: switched to a Changesets-driven `main` workflow that opens release PRs, updates `CHANGELOG.md`, and publishes/creates GitHub releases on merge.
 - Guardrail: require changesets for user-facing changes so each release has an explicit, reviewable changelog entry.
+
+## 2026-02-25
+- Correction: `connections --of <username>` passed the public handle directly into the search `connectionOf` filter, which can return unrelated people instead of the target member's actual network.
+- Fix: `connections --of` now resolves usernames/profile URLs to a canonical profile URN first and uses the extracted profile ID in request URL/body filters.
+- Guardrail: command tests now cover the profile-resolution request path for `--of` and keep pagination assertions around the resolved profile ID flow.
