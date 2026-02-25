@@ -11,8 +11,8 @@ import {
 	parseConnectionsFromSearchHtml,
 	parseConnectionsFromSearchStream,
 } from "../lib/parser.js";
-import { resolveRecipient } from "../lib/recipient.js";
 import type { NormalizedConnection } from "../lib/types.js";
+import { parseLinkedInUrl } from "../lib/url-parser.js";
 import { extractIdFromUrn } from "../lib/url-parser.js";
 import { formatConnection, formatPagination } from "../output/human.js";
 import { formatJson } from "../output/json.js";
@@ -55,7 +55,7 @@ const FAST_DELAY_MAX_MS = 600;
 const MAX_STALL_PAGES = 3;
 const DEBUG_CONNECTIONS =
 	process.env.LI_DEBUG_CONNECTIONS === "1" || process.env.LI_DEBUG_CONNECTIONS === "true";
-const PROFILE_ID_PATTERN = /^ACo[A-Za-z0-9_-]+$/;
+const PROFILE_IDENTIFIER_PATTERN = /^[A-Za-z0-9_-]+$/;
 const DEFAULT_NETWORK_DEGREES: NetworkDegree[] = ["1st", "2nd", "3rd"];
 const NETWORK_FILTERS: Record<NetworkDegree, string> = {
 	"1st": "F",
@@ -93,15 +93,9 @@ export async function connections(
 	const fetchAll = options.all ?? false;
 	const count = fetchAll ? null : Math.max(0, requestedCount);
 	const connectionOfIdentifier = options.of?.trim();
-	const connectionOf = connectionOfIdentifier
-		? await resolveRecipient(client, connectionOfIdentifier)
+	const connectionOfId = connectionOfIdentifier
+		? normalizeConnectionOfIdentifier(connectionOfIdentifier)
 		: null;
-	const connectionOfId = connectionOf ? extractIdFromUrn(connectionOf.urn) : null;
-	if (connectionOfId && !PROFILE_ID_PATTERN.test(connectionOfId)) {
-		throw new Error(
-			`Invalid profile id resolved for --of (${connectionOfId}). Try again or pass a profile URL/URN.`,
-		);
-	}
 	const networkDegrees = connectionOfId
 		? options.network && options.network.length > 0
 			? options.network
@@ -116,7 +110,7 @@ export async function connections(
 	const requestUrl = connectionOfId
 		? buildConnectionsOfRequestUrl(connectionOfId, 1, networkFilters)
 		: FLAGSHIP_CONNECTIONS_URL;
-	const buildBody = connectionOf
+	const buildBody = connectionOfId
 		? (startIndex: number, _pageSize: number) =>
 				buildConnectionsOfSearchBody(startIndex, connectionOfId ?? "", networkFilters)
 		: buildConnectionsPaginationBody;
@@ -470,6 +464,28 @@ function buildConnectionsPaginationBody(
 			retryCount: 2,
 		},
 	};
+}
+
+function normalizeConnectionOfIdentifier(identifier: string): string {
+	const parsed = parseLinkedInUrl(identifier);
+	if (!parsed || parsed.type !== "profile") {
+		throw new Error(
+			`Invalid --of value: ${identifier}. Provide a profile username, profile URL, or profile URN.`,
+		);
+	}
+
+	const normalized = parsed.identifier.startsWith("urn:li:")
+		? extractIdFromUrn(parsed.identifier)
+		: parsed.identifier;
+	const value = normalized.trim();
+
+	if (!value || !PROFILE_IDENTIFIER_PATTERN.test(value)) {
+		throw new Error(
+			`Invalid --of value: ${identifier}. Provide a profile username, profile URL, or profile URN.`,
+		);
+	}
+
+	return value;
 }
 
 function buildConnectionsOfQuery(

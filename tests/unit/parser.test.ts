@@ -289,6 +289,31 @@ describe("parser", () => {
 				connectionDegree: "2nd",
 			});
 		});
+
+		it("filters out results whose profileId is not present in actionSlots", () => {
+			const payload = `"actionSlots":{"ACoALLOW":"SearchResultsACoALLOW"},
+"viewName":"people-search-result",
+"profileId":"ACoALLOW",
+"url":"https://www.linkedin.com/in/allowed-person/",
+"children":[["$","$L61","text-attr-0",{"children":["Allowed Person"]}]],
+"children":[["$","$L61","text-attr-0",{"children":["Founder"]}]],
+"viewName":"people-search-result",
+"profileId":"ACoBLOCK",
+"url":"https://www.linkedin.com/in/blocked-person/",
+"children":[["$","$L61","text-attr-0",{"children":["Blocked Person"]}]],
+"children":[["$","$L61","text-attr-0",{"children":["Engineer"]}]]`;
+
+			const result = parseConnectionsFromSearchStream(payload);
+
+			expect(result).toHaveLength(1);
+			expect(result[0]).toMatchObject({
+				username: "allowed-person",
+				firstName: "Allowed",
+				lastName: "Person",
+				headline: "Founder",
+				urn: "urn:li:fsd_profile:ACoALLOW",
+			});
+		});
 	});
 
 	describe("parseConversation", () => {
