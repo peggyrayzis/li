@@ -1,12 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { connections } from "../../../src/commands/connections.js";
 import type { LinkedInCredentials } from "../../../src/lib/auth.js";
-import { resolveRecipient } from "../../../src/lib/recipient.js";
 import { buildCookieHeader } from "../../helpers/cookies.js";
-
-vi.mock("../../../src/lib/recipient.js", () => ({
-	resolveRecipient: vi.fn(),
-}));
 
 function buildRscPayload(startIndex: number, count: number): string {
 	const entries: string[] = [];
@@ -43,10 +38,6 @@ describe("connections command", () => {
 	beforeEach(() => {
 		mockFetch = vi.fn();
 		vi.stubGlobal("fetch", mockFetch);
-		vi.mocked(resolveRecipient).mockResolvedValue({
-			username: "target",
-			urn: "urn:li:fsd_profile:ACoTARGET",
-		});
 	});
 
 	afterEach(() => {
@@ -131,10 +122,10 @@ describe("connections command", () => {
 
 			expect(mockFetch).toHaveBeenCalledWith(
 				expect.stringContaining(
-					"/flagship-web/search/results/people/?origin=FACETED_SEARCH&connectionOf=%22ACoTARGET%22",
+					"/flagship-web/search/results/people/?origin=FACETED_SEARCH&connectionOf=%22peggyrayzis%22",
 				),
 				expect.objectContaining({
-					body: expect.stringContaining('"filterItemSingle":"ACoTARGET"'),
+					body: expect.stringContaining('"filterItemSingle":"peggyrayzis"'),
 				}),
 			);
 			expect(mockFetch).toHaveBeenCalledWith(
@@ -145,6 +136,40 @@ describe("connections command", () => {
 				expect.any(String),
 				expect.objectContaining({
 					body: expect.stringContaining('"filterList":["F","S","O"]'),
+				}),
+			);
+		});
+
+		it("normalizes profile URN for connectionOf filter", async () => {
+			mockFetch
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 2)))
+				.mockResolvedValue(mockFlagshipResponse(""));
+
+			await connections(mockCredentials, { of: "urn:li:fsd_profile:ACoTARGET" });
+
+			expect(mockFetch).toHaveBeenCalledWith(
+				expect.stringContaining(
+					"/flagship-web/search/results/people/?origin=FACETED_SEARCH&connectionOf=%22ACoTARGET%22",
+				),
+				expect.objectContaining({
+					body: expect.stringContaining('"filterItemSingle":"ACoTARGET"'),
+				}),
+			);
+		});
+
+		it("normalizes member URN for connectionOf filter", async () => {
+			mockFetch
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 2)))
+				.mockResolvedValue(mockFlagshipResponse(""));
+
+			await connections(mockCredentials, { of: "urn:li:member:229437279" });
+
+			expect(mockFetch).toHaveBeenCalledWith(
+				expect.stringContaining(
+					"/flagship-web/search/results/people/?origin=FACETED_SEARCH&connectionOf=%22229437279%22",
+				),
+				expect.objectContaining({
+					body: expect.stringContaining('"filterItemSingle":"229437279"'),
 				}),
 			);
 		});
