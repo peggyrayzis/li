@@ -178,6 +178,7 @@ A few ground rules:
 - Merge PRs to `main` as usual.
 - The `Release` GitHub Action opens/updates a release PR with version bumps + `CHANGELOG.md`.
 - Merging that release PR publishes to npm and creates a GitHub release.
+- Release notes are auto-generated with pull requests, commit log, contributors, and a compare link.
 
 ## Disclaimer
 
