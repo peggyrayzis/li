@@ -1,6 +1,11 @@
 # Repository Operating System
 Last Updated: 2026-02-25
 
+## Project Context
+- `li` is a LinkedIn CLI for agents.
+- It provides command-line workflows for authenticated LinkedIn operations with machine-friendly output for automation.
+- This repository operating system exists to keep delivery PR-first, secure, and low-noise while the CLI evolves.
+
 ## Guiding Principles
 - Keep process lightweight: automate enforcement, avoid manual checklists in PR comments.
 - Use GitHub Issues as the only task tracker.
