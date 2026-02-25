@@ -204,6 +204,13 @@ describe("auth", () => {
 			expect(result.credentials.liAt).toBe("chrome-li-at-token");
 			expect(result.credentials.jsessionId).toBe("chrome-jsession-token");
 			expect(result.credentials.source).toBe("chrome");
+			expect(getCookies).toHaveBeenCalledWith(
+				expect.objectContaining({
+					browsers: ["chrome"],
+					timeoutMs: 30000,
+					url: "https://www.linkedin.com",
+				}),
+			);
 		});
 
 		it("env vars take priority over Chrome cookies", async () => {

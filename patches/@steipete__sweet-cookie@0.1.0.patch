@@ -1,0 +1,40 @@
+diff --git a/dist/providers/chromeSqlite/shared.js b/dist/providers/chromeSqlite/shared.js
+index 59ef6e4e20a40a71db7fc39d46606c306682e967..cd1bd1690f6e7dc1819dcb1ec68279f1a54f3115 100644
+--- a/dist/providers/chromeSqlite/shared.js
++++ b/dist/providers/chromeSqlite/shared.js
+@@ -185,7 +185,10 @@ async function readChromiumMetaVersion(dbPath) {
+ async function readChromeRows(dbPath, where) {
+     const sqliteKind = isBunRuntime() ? 'bun' : 'node';
+     const sqliteLabel = sqliteKind === 'bun' ? 'bun:sqlite' : 'node:sqlite';
+-    const sql = `SELECT name, value, host_key, path, expires_utc, samesite, encrypted_value, ` +
++    const expiresCol = sqliteKind === 'node' && !supportsReadBigInts()
++        ? 'CAST(expires_utc AS TEXT) AS expires_utc'
++        : 'expires_utc';
++    const sql = `SELECT name, value, host_key, path, ${expiresCol}, samesite, encrypted_value, ` +
+         `is_secure AS is_secure, is_httponly AS is_httponly ` +
+         `FROM cookies WHERE (${where}) ORDER BY expires_utc DESC;`;
+     const result = await queryNodeOrBun({ kind: sqliteKind, dbPath, sql });
+diff --git a/dist/providers/chromeSqliteMac.d.ts b/dist/providers/chromeSqliteMac.d.ts
+index da0e8aaad456961d15185be1cc03b5f0bcd8d179..3a213b185ad4f36cf9f2a52b307d502510d5655f 100644
+--- a/dist/providers/chromeSqliteMac.d.ts
++++ b/dist/providers/chromeSqliteMac.d.ts
+@@ -3,5 +3,6 @@ export declare function getCookiesFromChromeSqliteMac(options: {
+     profile?: string;
+     includeExpired?: boolean;
+     debug?: boolean;
++    timeoutMs?: number;
+ }, origins: string[], allowlistNames: Set<string> | null): Promise<GetCookiesResult>;
+ //# sourceMappingURL=chromeSqliteMac.d.ts.map
+diff --git a/dist/providers/chromeSqliteMac.js b/dist/providers/chromeSqliteMac.js
+index 71c815f77378d03e07061976ac372b3a55a61ac4..3a85a2fce102128d7e7b69145d97bc353f663008 100644
+--- a/dist/providers/chromeSqliteMac.js
++++ b/dist/providers/chromeSqliteMac.js
+@@ -15,7 +15,7 @@ export async function getCookiesFromChromeSqliteMac(options, origins, allowlistN
+     const passwordResult = await readKeychainGenericPasswordFirst({
+         account: 'Chrome',
+         services: ['Chrome Safe Storage'],
+-        timeoutMs: 3_000,
++        timeoutMs: options.timeoutMs ?? 3_000,
+         label: 'Chrome Safe Storage',
+     });
+     if (!passwordResult.ok) {
