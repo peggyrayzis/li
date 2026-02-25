@@ -52,9 +52,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          PROJECT_ALLOW_MAIN_PUSH: "1"
 
       - name: Push semver GitHub tag
         if: steps.changesets.outputs.published == 'true'
+        env:
+          PROJECT_ALLOW_MAIN_PUSH: "1"
         run: |
           VERSION="v$(node -p "require('./package.json').version")"
           if git rev-parse "$VERSION" >/dev/null 2>&1; then
