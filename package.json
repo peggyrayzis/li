@@ -20,7 +20,6 @@
     "check": "npm run lint && npm run typecheck && npm run test",
     "hooks:install": "bash scripts/install-githooks.sh",
     "prepare": "npm run hooks:install",
-    "validate": "npm run check && npm run security",
     "prepublishOnly": "pnpm run build",
     "postversion": "git push && git push --tags"
   },
