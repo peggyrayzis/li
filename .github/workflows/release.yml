@@ -2,11 +2,16 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*.*.*"
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
+  pull-requests: write
   id-token: write
 
 jobs:
@@ -14,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
 
@@ -24,17 +31,32 @@ jobs:
           cache: "pnpm"
 
       - run: pnpm install --frozen-lockfile
+      - run: npm run check
+      - run: sudo apt-get update && sudo apt-get install -y ripgrep
+      - run: npm run security
 
-      - run: pnpm test
-
-      - run: pnpm run build
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - name: Create release PR or publish
+        id: changesets
+        uses: changesets/action@v1
         with:
-          generate_release_notes: true
-
-      - name: Publish to npm
-        run: npm publish --access public --provenance
+          title: "chore: release"
+          commit: "chore: release"
+          version: pnpm version-packages && pnpm install --lockfile-only
+          publish: pnpm release
+          createGithubReleases: true
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Push semver GitHub tag
+        if: steps.changesets.outputs.published == 'true'
+        run: |
+          VERSION="v$(node -p "require('./package.json').version")"
+          if git rev-parse "$VERSION" >/dev/null 2>&1; then
+            echo "Tag $VERSION already exists"
+            exit 0
+          fi
+          git tag "$VERSION"
+          git push origin "$VERSION"

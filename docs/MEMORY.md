@@ -17,3 +17,8 @@ Append-only log. Add entries; do not rewrite historical entries except typo fixe
 - Correction: `@steipete/sweet-cookie@0.1.0` ignored Chrome macOS `timeoutMs` and failed Chrome cookie reads on Node 22 with large `expires_utc` values.
 - Fix: applied a local `pnpm` dependency patch to propagate `timeoutMs` in Chrome macOS keychain reads and cast `expires_utc` for Node runtimes without `readBigInts`.
 - Guardrail: keep the repository patch until upstream `sweet-cookie` merges/releases equivalent fixes, then remove patch and retest smoke on Node 22.
+
+## 2026-02-25
+- Correction: release automation depended on manually pushed `v*` tags, so npm publishes could happen without corresponding GitHub releases or changelog history.
+- Fix: switched to a Changesets-driven `main` workflow that opens release PRs, updates `CHANGELOG.md`, and publishes/creates GitHub releases on merge.
+- Guardrail: require changesets for user-facing changes so each release has an explicit, reviewable changelog entry.

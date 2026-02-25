@@ -172,6 +172,13 @@ A few ground rules:
 - **v0.1 is read-only.** Write commands (`send`, `connect`, `invites accept`) are deferred to v0.2.
 - **Open an issue first** for large changes so we can discuss the approach.
 
+## Releasing
+
+- Add a changeset for user-facing updates: `pnpm changeset`
+- Merge PRs to `main` as usual.
+- The `Release` GitHub Action opens/updates a release PR with version bumps + `CHANGELOG.md`.
+- Merging that release PR publishes to npm and creates a GitHub release.
+
 ## Disclaimer
 
 This tool uses LinkedIn's internal Voyager API with cookie authentication for personal use and agent-powered workflows on your own account. LinkedIn can change their API at any time. Aggressive automation may result in account restrictions. Not affiliated with or endorsed by LinkedIn.
