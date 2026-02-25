@@ -4,6 +4,22 @@ import { acceptInvite, type InvitesOptions, listInvites } from "../../../src/com
 import type { LinkedInCredentials } from "../../../src/lib/auth.js";
 import { buildCookieHeader } from "../../helpers/cookies.js";
 
+function expectLocalLiTrackHeader(headers: unknown): void {
+	const record = headers as Record<string, string>;
+	const raw = record["X-Li-Track"];
+	expect(typeof raw).toBe("string");
+
+	const parsed = JSON.parse(raw) as Record<string, unknown>;
+	const expectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+	const expectedOffset = Number((-new Date().getTimezoneOffset() / 60).toFixed(2));
+
+	expect(parsed.timezone).toBe(expectedTimezone);
+	expect(parsed.timezoneOffset).toBe(expectedOffset);
+	expect(parsed).not.toHaveProperty("displayWidth");
+	expect(parsed).not.toHaveProperty("displayHeight");
+	expect(parsed).not.toHaveProperty("displayDensity");
+}
+
 // Load fixture
 const rscPayload =
 	'{"entityUrn":"urn:li:fsd_invitation:INV123","sharedSecret":"secret-1","invitationType":"CONNECTION","sentTime":1706572800000,"sharedConnections":{"count":3},"genericInviter":{"miniProfile":{"publicIdentifier":"newconnection","firstName":"Alex","lastName":"Johnson","occupation":"Engineering Lead at Acme"}},"message":"Loved your developer marketing talk!"}' +
@@ -116,6 +132,15 @@ describe("invites command", () => {
 
 			// Fixture has invitations with shared connections
 			expect(result).toMatch(/shared connection/i);
+		});
+
+		it("sends local X-Li-Track header metadata", async () => {
+			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(rscPayload));
+
+			await listInvites(mockCredentials);
+
+			const [, options] = mockFetch.mock.calls[0] as [string, { headers?: unknown }];
+			expectLocalLiTrackHeader(options.headers);
 		});
 	});
 
