@@ -10,6 +10,7 @@ import type { LinkedInCredentials } from "../lib/auth.js";
 import { LinkedInClient } from "../lib/client.js";
 import endpoints from "../lib/endpoints.json" with { type: "json" };
 import { buildHeaders } from "../lib/headers.js";
+import { buildLiTrackHeader } from "../lib/li-track.js";
 import { parseInvitationsFromFlagshipRsc } from "../lib/parser.js";
 import type { NormalizedInvitation } from "../lib/types.js";
 import { extractIdFromUrn } from "../lib/url-parser.js";
@@ -38,8 +39,6 @@ const FLAGSHIP_INVITES_URL =
 const FLAGSHIP_INVITES_REFERER = "https://www.linkedin.com/mynetwork/invitation-manager/received/";
 const FLAGSHIP_PAGE_INSTANCE =
 	"urn:li:page:d_flagship3_people_invitations;fkBHD5OCSzq7lUUo2+5Oiw==";
-const FLAGSHIP_TRACK =
-	'{"clientVersion":"0.2.3802","mpVersion":"0.2.3802","osName":"web","timezoneOffset":-5,"timezone":"America/New_York","deviceFormFactor":"DESKTOP","mpName":"web","displayDensity":2,"displayWidth":3024,"displayHeight":1964}';
 const DEBUG_INVITES =
 	process.env.LI_DEBUG_INVITES === "1" || process.env.LI_DEBUG_INVITES === "true";
 
@@ -55,6 +54,7 @@ export async function listInvites(
 	options: InvitesOptions = {},
 ): Promise<string> {
 	const client = new LinkedInClient(credentials);
+	const liTrack = buildLiTrackHeader();
 
 	const headers = {
 		...buildHeaders(credentials),
@@ -63,7 +63,7 @@ export async function listInvites(
 		Origin: "https://www.linkedin.com",
 		Referer: FLAGSHIP_INVITES_REFERER,
 		"X-Li-Page-Instance": FLAGSHIP_PAGE_INSTANCE,
-		"X-Li-Track": FLAGSHIP_TRACK,
+		"X-Li-Track": liTrack,
 	};
 
 	const response = await client.requestAbsolute(FLAGSHIP_INVITES_URL, {
