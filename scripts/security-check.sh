@@ -6,6 +6,11 @@ cd "$ROOT_DIR"
 
 errors=0
 
+if ! command -v rg >/dev/null 2>&1; then
+	echo "ERROR: ripgrep (rg) is required for scripts/security-check.sh" >&2
+	exit 1
+fi
+
 record_error() {
 	echo "ERROR: $*" >&2
 	errors=$((errors + 1))

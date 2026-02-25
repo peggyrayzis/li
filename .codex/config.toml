@@ -1,9 +1,22 @@
+[features]
 multi_agent = true
+
+[agents]
 max_threads = 4
 max_depth = 2
 
-[roles]
-explorer = ".codex/agents/explorer.toml"
-worker = ".codex/agents/worker.toml"
-monitor = ".codex/agents/monitor.toml"
-reviewer = ".codex/agents/reviewer.toml"
+[agents.explorer]
+description = "Read-only repository explorer role."
+config_file = "agents/explorer.toml"
+
+[agents.worker]
+description = "Implementation role with workspace write access."
+config_file = "agents/worker.toml"
+
+[agents.monitor]
+description = "Read-only validation and drift monitor role."
+config_file = "agents/monitor.toml"
+
+[agents.reviewer]
+description = "Read-only reviewer for bugs, regressions, and test gaps."
+config_file = "agents/reviewer.toml"

@@ -17,6 +17,7 @@ PR_TEMPLATE=".github/pull_request_template.md"
 
 DOC_FRESHNESS_DAYS="${DOC_FRESHNESS_DAYS:-45}"
 DOC_CHECK_ALL_DOCS="${DOC_CHECK_ALL_DOCS:-0}"
+DOCS_DIFF_BASE="${DOCS_DIFF_BASE:-}"
 
 errors=0
 
@@ -90,12 +91,25 @@ collect_changed_managed_docs() {
 			git fetch --no-tags --depth=1 origin "${GITHUB_BASE_REF}" >/dev/null 2>&1 || true
 		fi
 		diff_output="$(git diff --name-only "origin/${GITHUB_BASE_REF}...HEAD" 2>/dev/null || true)"
-	elif git rev-parse --verify --quiet HEAD >/dev/null; then
-		diff_output="$(git diff --name-only HEAD)"
-		diff_output="$(printf '%s\n%s\n' "$diff_output" "$(git ls-files --others --exclude-standard)")"
 	else
-		diff_output="$(git diff --cached --name-only)"
-		diff_output="$(printf '%s\n%s\n' "$diff_output" "$(git ls-files --others --exclude-standard)")"
+		local resolved_base="$DOCS_DIFF_BASE"
+		if [[ -z "$resolved_base" ]]; then
+			if git rev-parse --verify --quiet origin/main >/dev/null; then
+				resolved_base="origin/main"
+			elif git rev-parse --verify --quiet main >/dev/null; then
+				resolved_base="main"
+			fi
+		fi
+
+		if [[ -n "$resolved_base" ]]; then
+			diff_output="$(git diff --name-only "${resolved_base}...HEAD" 2>/dev/null || true)"
+		fi
+
+		diff_output="$(printf '%s\n%s\n%s\n%s\n' \
+			"$diff_output" \
+			"$(git diff --name-only 2>/dev/null || true)" \
+			"$(git diff --cached --name-only 2>/dev/null || true)" \
+			"$(git ls-files --others --exclude-standard)")"
 	fi
 
 	while IFS= read -r file; do
