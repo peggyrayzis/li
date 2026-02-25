@@ -57,6 +57,34 @@ describe("recipient", () => {
 
 	describe("resolveRecipient", () => {
 		describe("plain username input", () => {
+			it("resolves username from dash lookup data+included payload", async () => {
+				mockClient.request.mockResolvedValueOnce({
+					json: () =>
+						Promise.resolve({
+							data: {
+								"*elements": ["urn:li:fsd_profile:ACoAABcd1234"],
+							},
+							included: [
+								{
+									entityUrn: "urn:li:fsd_profile:ACoAABcd1234",
+									publicIdentifier: "peggyrayzis",
+								},
+							],
+						}),
+				});
+
+				const result = await resolveRecipient(
+					mockClient as unknown as LinkedInClient,
+					"peggyrayzis",
+				);
+
+				expect(result).toEqual({
+					username: "peggyrayzis",
+					urn: "urn:li:fsd_profile:ACoAABcd1234",
+				});
+				expect(mockClient.requestAbsolute).not.toHaveBeenCalled();
+			});
+
 			it("falls back to HTML profile page when dash lookup is empty", async () => {
 				mockClient.request
 					.mockResolvedValueOnce({

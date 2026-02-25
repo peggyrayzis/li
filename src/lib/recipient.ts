@@ -89,6 +89,13 @@ interface ProfileLookupResponse {
 		entityUrn: string;
 		publicIdentifier?: string;
 	}> | null;
+	data?: {
+		"*elements"?: string[];
+	} | null;
+	included?: Array<{
+		entityUrn?: string;
+		publicIdentifier?: string;
+	}> | null;
 }
 
 interface MeResponse {
@@ -168,21 +175,32 @@ export async function resolveRecipient(
  */
 async function lookupProfileByUrn(client: LinkedInClient, urn: string): Promise<ResolvedRecipient> {
 	debugRecipient(`lookupProfileByUrn urn=${urn}`);
-	const response = await client.request(
-		`/identity/dash/profiles?q=memberIdentity&memberIdentity=${encodeURIComponent(urn)}`,
-		{ method: "GET" },
-	);
-	const data = (await response.json()) as ProfileLookupResponse;
-
-	if (!data.elements || data.elements.length === 0) {
-		debugRecipient(`lookupProfileByUrn not found urn=${urn}`);
-		throw new Error(`Profile not found for URN: ${urn}`);
+	let forbiddenLookup = false;
+	try {
+		const response = await client.request(
+			`/identity/dash/profiles?q=memberIdentity&memberIdentity=${encodeURIComponent(urn)}`,
+			{ method: "GET" },
+		);
+		const data = (await response.json()) as ProfileLookupResponse;
+		const resolved = extractProfileFromLookup(data, "");
+		if (resolved) {
+			return resolved;
+		}
+	} catch (error) {
+		if (!(error instanceof LinkedInApiError) || error.status !== 403) {
+			throw error;
+		}
+		forbiddenLookup = true;
 	}
 
-	return {
-		username: data.elements[0].publicIdentifier ?? "",
-		urn: data.elements[0].entityUrn,
-	};
+	// Some sessions cannot resolve URNs via memberIdentity lookup, but fsd_profile URNs
+	// are still valid for downstream dash profile fetches.
+	if (forbiddenLookup && urn.startsWith("urn:li:fsd_profile:")) {
+		return { username: "", urn };
+	}
+
+	debugRecipient(`lookupProfileByUrn not found urn=${urn}`);
+	throw new Error(`Profile not found for URN: ${urn}`);
 }
 
 /**
@@ -201,6 +219,10 @@ async function lookupProfileByUsername(
 			{ method: "GET" },
 		);
 		data = (await response.json()) as ProfileLookupResponse;
+		const resolved = extractProfileFromLookup(data, username);
+		if (resolved) {
+			return resolved;
+		}
 	} catch (error) {
 		if (error instanceof LinkedInApiError && error.status === 403) {
 			dashLookupError = error;
@@ -257,6 +279,55 @@ async function lookupProfileByUsername(
 		username: data.elements[0].publicIdentifier ?? username,
 		urn: data.elements[0].entityUrn,
 	};
+}
+
+function extractProfileFromLookup(
+	data: ProfileLookupResponse,
+	fallbackUsername: string,
+): ResolvedRecipient | null {
+	const legacyElement = data.elements?.find(
+		(element) => Boolean(element?.entityUrn) && typeof element.entityUrn === "string",
+	);
+	if (legacyElement?.entityUrn) {
+		return {
+			username: legacyElement.publicIdentifier ?? fallbackUsername,
+			urn: normalizeProfileUrn(legacyElement.entityUrn),
+		};
+	}
+
+	const lookupUrns = data.data?.["*elements"] ?? [];
+	const included = data.included ?? [];
+	for (const urn of lookupUrns) {
+		if (typeof urn !== "string") {
+			continue;
+		}
+		const profile = included.find((item) => item?.entityUrn === urn);
+		if (profile?.entityUrn) {
+			return {
+				username: profile.publicIdentifier ?? fallbackUsername,
+				urn: normalizeProfileUrn(profile.entityUrn),
+			};
+		}
+		// Fallback to URN list even when included is unexpectedly missing.
+		return {
+			username: fallbackUsername,
+			urn: normalizeProfileUrn(urn),
+		};
+	}
+
+	const includedProfile = included.find(
+		(item) =>
+			typeof item?.entityUrn === "string" &&
+			(item.entityUrn.includes("urn:li:fsd_profile:") || item.entityUrn.includes("urn:li:member:")),
+	);
+	if (includedProfile?.entityUrn) {
+		return {
+			username: includedProfile.publicIdentifier ?? fallbackUsername,
+			urn: normalizeProfileUrn(includedProfile.entityUrn),
+		};
+	}
+
+	return null;
 }
 
 async function lookupProfileByUsernameView(

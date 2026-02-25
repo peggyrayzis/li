@@ -6,14 +6,14 @@
 import type { LinkedInCredentials } from "../lib/auth.js";
 import { LinkedInClient } from "../lib/client.js";
 import { buildHeaders } from "../lib/headers.js";
+import { buildLiTrackHeader } from "../lib/li-track.js";
 import {
 	parseConnectionsFromFlagshipRsc,
 	parseConnectionsFromSearchHtml,
 	parseConnectionsFromSearchStream,
 } from "../lib/parser.js";
-import { resolveRecipient } from "../lib/recipient.js";
 import type { NormalizedConnection } from "../lib/types.js";
-import { extractIdFromUrn } from "../lib/url-parser.js";
+import { extractIdFromUrn, parseLinkedInUrl } from "../lib/url-parser.js";
 import { formatConnection, formatPagination } from "../output/human.js";
 import { formatJson } from "../output/json.js";
 
@@ -46,8 +46,6 @@ const FLAGSHIP_PAGE_INSTANCE =
 	"urn:li:page:d_flagship3_people_connections;fkBHD5OCSzq7lUUo2+5Oiw==";
 const FLAGSHIP_SEARCH_PAGE_INSTANCE =
 	"urn:li:page:d_flagship3_search_srp_people;4GLXsZt9SMWi+zWnoT3o9w==";
-const FLAGSHIP_TRACK =
-	'{"clientVersion":"0.2.3802","mpVersion":"0.2.3802","osName":"web","timezoneOffset":-5,"timezone":"America/New_York","deviceFormFactor":"DESKTOP","mpName":"web","displayDensity":2,"displayWidth":3024,"displayHeight":1964}';
 const CONNECTIONS_OF_PAGE_SIZE = 10;
 const CONNECTIONS_OF_ORIGIN = "FACETED_SEARCH";
 const FAST_DELAY_MIN_MS = 200;
@@ -55,7 +53,7 @@ const FAST_DELAY_MAX_MS = 600;
 const MAX_STALL_PAGES = 3;
 const DEBUG_CONNECTIONS =
 	process.env.LI_DEBUG_CONNECTIONS === "1" || process.env.LI_DEBUG_CONNECTIONS === "true";
-const PROFILE_ID_PATTERN = /^ACo[A-Za-z0-9_-]+$/;
+const PROFILE_IDENTIFIER_PATTERN = /^[A-Za-z0-9_-]+$/;
 const DEFAULT_NETWORK_DEGREES: NetworkDegree[] = ["1st", "2nd", "3rd"];
 const NETWORK_FILTERS: Record<NetworkDegree, string> = {
 	"1st": "F",
@@ -93,15 +91,9 @@ export async function connections(
 	const fetchAll = options.all ?? false;
 	const count = fetchAll ? null : Math.max(0, requestedCount);
 	const connectionOfIdentifier = options.of?.trim();
-	const connectionOf = connectionOfIdentifier
-		? await resolveRecipient(client, connectionOfIdentifier)
+	const connectionOfId = connectionOfIdentifier
+		? normalizeConnectionOfIdentifier(connectionOfIdentifier)
 		: null;
-	const connectionOfId = connectionOf ? extractIdFromUrn(connectionOf.urn) : null;
-	if (connectionOfId && !PROFILE_ID_PATTERN.test(connectionOfId)) {
-		throw new Error(
-			`Invalid profile id resolved for --of (${connectionOfId}). Try again or pass a profile URL/URN.`,
-		);
-	}
 	const networkDegrees = connectionOfId
 		? options.network && options.network.length > 0
 			? options.network
@@ -116,7 +108,7 @@ export async function connections(
 	const requestUrl = connectionOfId
 		? buildConnectionsOfRequestUrl(connectionOfId, 1, networkFilters)
 		: FLAGSHIP_CONNECTIONS_URL;
-	const buildBody = connectionOf
+	const buildBody = connectionOfId
 		? (startIndex: number, _pageSize: number) =>
 				buildConnectionsOfSearchBody(startIndex, connectionOfId ?? "", networkFilters)
 		: buildConnectionsPaginationBody;
@@ -127,6 +119,7 @@ export async function connections(
 	const skip = connectionOfId ? start - effectiveStart : 0;
 
 	const pageInstance = connectionOfId ? FLAGSHIP_SEARCH_PAGE_INSTANCE : FLAGSHIP_PAGE_INSTANCE;
+	const liTrack = buildLiTrackHeader();
 	const headers = {
 		...buildHeaders(credentials),
 		Accept: "*/*",
@@ -134,7 +127,7 @@ export async function connections(
 		Origin: "https://www.linkedin.com",
 		Referer: referer,
 		"X-Li-Page-Instance": pageInstance,
-		"X-Li-Track": FLAGSHIP_TRACK,
+		"X-Li-Track": liTrack,
 		...(connectionOfId ? { "X-Li-Rsc-Stream": "true" } : {}),
 	};
 
@@ -470,6 +463,28 @@ function buildConnectionsPaginationBody(
 			retryCount: 2,
 		},
 	};
+}
+
+function normalizeConnectionOfIdentifier(identifier: string): string {
+	const parsed = parseLinkedInUrl(identifier);
+	if (!parsed || parsed.type !== "profile") {
+		throw new Error(
+			`Invalid --of value: ${identifier}. Provide a profile username, profile URL, or profile URN.`,
+		);
+	}
+
+	const normalized = parsed.identifier.startsWith("urn:li:")
+		? extractIdFromUrn(parsed.identifier)
+		: parsed.identifier;
+	const value = normalized.trim();
+
+	if (!value || !PROFILE_IDENTIFIER_PATTERN.test(value)) {
+		throw new Error(
+			`Invalid --of value: ${identifier}. Provide a profile username, profile URL, or profile URN.`,
+		);
+	}
+
+	return value;
 }
 
 function buildConnectionsOfQuery(

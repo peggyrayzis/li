@@ -1,12 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { connections } from "../../../src/commands/connections.js";
 import type { LinkedInCredentials } from "../../../src/lib/auth.js";
-import { resolveRecipient } from "../../../src/lib/recipient.js";
 import { buildCookieHeader } from "../../helpers/cookies.js";
 
-vi.mock("../../../src/lib/recipient.js", () => ({
-	resolveRecipient: vi.fn(),
-}));
+function expectLocalLiTrackHeader(headers: unknown): void {
+	const record = headers as Record<string, string>;
+	const raw = record["X-Li-Track"];
+	expect(typeof raw).toBe("string");
+
+	const parsed = JSON.parse(raw) as Record<string, unknown>;
+	const expectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+	const expectedOffset = Number((-new Date().getTimezoneOffset() / 60).toFixed(2));
+
+	expect(parsed.timezone).toBe(expectedTimezone);
+	expect(parsed.timezoneOffset).toBe(expectedOffset);
+	expect(parsed).not.toHaveProperty("displayWidth");
+	expect(parsed).not.toHaveProperty("displayHeight");
+	expect(parsed).not.toHaveProperty("displayDensity");
+}
 
 function buildRscPayload(startIndex: number, count: number): string {
 	const entries: string[] = [];
@@ -43,10 +54,6 @@ describe("connections command", () => {
 	beforeEach(() => {
 		mockFetch = vi.fn();
 		vi.stubGlobal("fetch", mockFetch);
-		vi.mocked(resolveRecipient).mockResolvedValue({
-			username: "target",
-			urn: "urn:li:fsd_profile:ACoTARGET",
-		});
 	});
 
 	afterEach(() => {
@@ -131,10 +138,10 @@ describe("connections command", () => {
 
 			expect(mockFetch).toHaveBeenCalledWith(
 				expect.stringContaining(
-					"/flagship-web/search/results/people/?origin=FACETED_SEARCH&connectionOf=%22ACoTARGET%22",
+					"/flagship-web/search/results/people/?origin=FACETED_SEARCH&connectionOf=%22peggyrayzis%22",
 				),
 				expect.objectContaining({
-					body: expect.stringContaining('"filterItemSingle":"ACoTARGET"'),
+					body: expect.stringContaining('"filterItemSingle":"peggyrayzis"'),
 				}),
 			);
 			expect(mockFetch).toHaveBeenCalledWith(
@@ -149,6 +156,40 @@ describe("connections command", () => {
 			);
 		});
 
+		it("normalizes profile URN for connectionOf filter", async () => {
+			mockFetch
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 2)))
+				.mockResolvedValue(mockFlagshipResponse(""));
+
+			await connections(mockCredentials, { of: "urn:li:fsd_profile:ACoTARGET" });
+
+			expect(mockFetch).toHaveBeenCalledWith(
+				expect.stringContaining(
+					"/flagship-web/search/results/people/?origin=FACETED_SEARCH&connectionOf=%22ACoTARGET%22",
+				),
+				expect.objectContaining({
+					body: expect.stringContaining('"filterItemSingle":"ACoTARGET"'),
+				}),
+			);
+		});
+
+		it("normalizes member URN for connectionOf filter", async () => {
+			mockFetch
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 2)))
+				.mockResolvedValue(mockFlagshipResponse(""));
+
+			await connections(mockCredentials, { of: "urn:li:member:123456789" });
+
+			expect(mockFetch).toHaveBeenCalledWith(
+				expect.stringContaining(
+					"/flagship-web/search/results/people/?origin=FACETED_SEARCH&connectionOf=%22123456789%22",
+				),
+				expect.objectContaining({
+					body: expect.stringContaining('"filterItemSingle":"123456789"'),
+				}),
+			);
+		});
+
 		it("returns paging.total as null for connectionOf JSON output", async () => {
 			mockFetch
 				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 2)))
@@ -158,6 +199,15 @@ describe("connections command", () => {
 			const parsed = JSON.parse(result);
 
 			expect(parsed.paging.total).toBeNull();
+		});
+
+		it("sends local X-Li-Track header metadata", async () => {
+			mockFetch.mockResolvedValueOnce(mockFlagshipResponse(""));
+
+			await connections(mockCredentials);
+
+			const [, options] = mockFetch.mock.calls[0] as [string, { headers?: unknown }];
+			expectLocalLiTrackHeader(options.headers);
 		});
 	});
 
