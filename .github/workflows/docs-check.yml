@@ -53,7 +53,7 @@ jobs:
       - run: npm run security
 
   smoke:
-    if: ${{ hashFiles('scripts/smoke.sh') != '' && vars.LI_SMOKE_ENABLED == '1' }}
+    if: ${{ vars.LI_SMOKE_ENABLED == '1' }}
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
