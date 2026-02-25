@@ -367,11 +367,15 @@ export function parseConnectionsFromSearchHtml(payload: string): NormalizedConne
  * Parses connections from LinkedIn search RSC stream payloads.
  * Looks for "people-search-result" blocks and extracts profile URLs and names.
  */
-export function parseConnectionsFromSearchStream(payload: string): NormalizedConnection[] {
+export function parseConnectionsFromSearchStream(
+	payload: string,
+	options: { enforceActionSlots?: boolean } = {},
+): NormalizedConnection[] {
 	const normalizedPayload = payload.replace(/\\u002F/g, "/").replace(/\\\//g, "/");
 	const marker = 'viewName":"people-search-result"';
 	const results: NormalizedConnection[] = [];
 	const seen = new Set<string>();
+	const enforceActionSlots = options.enforceActionSlots ?? true;
 
 	const collectActionSlotProfileIds = (value: string): Set<string> => {
 		const ids = new Set<string>();
@@ -505,7 +509,11 @@ export function parseConnectionsFromSearchStream(payload: string): NormalizedCon
 			continue;
 		}
 		const profileId = extractProfileId(chunk, username);
-		if (allowedProfileIds.size > 0 && (!profileId || !allowedProfileIds.has(profileId))) {
+		if (
+			enforceActionSlots &&
+			allowedProfileIds.size > 0 &&
+			(!profileId || !allowedProfileIds.has(profileId))
+		) {
 			index = start + marker.length;
 			continue;
 		}

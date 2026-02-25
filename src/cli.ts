@@ -345,6 +345,10 @@ program
 	.option("--of <identifier>", "List connections of a specific profile")
 	.option("--fast", "Faster pacing with adaptive slowdown on rate limits")
 	.option("--network <levels>", "Connection degrees for --of (1st,2nd,3rd). Default: all.")
+	.option(
+		"--experimental-search-dash",
+		"Use experimental Voyager search/dash/clusters backend for --of",
+	)
 	.action(async (options) => {
 		try {
 			const globalOpts = program.opts();
@@ -357,6 +361,7 @@ program
 				of: options.of,
 				fast: options.fast,
 				network: parseNetworkDegrees(options.network),
+				...(options.experimentalSearchDash ? { experimentalSearchDash: true } : {}),
 				noProgress: globalOpts.progress === false,
 			});
 			console.log(output);

@@ -71,12 +71,15 @@ describe("connections command", () => {
 	let mockFetch: ReturnType<typeof vi.fn>;
 	let previousDelayMinMs: string | undefined;
 	let previousDelayMaxMs: string | undefined;
+	let previousConnectionsCooldownMs: string | undefined;
 
 	beforeEach(() => {
 		previousDelayMinMs = process.env.LI_REQUEST_DELAY_MIN_MS;
 		previousDelayMaxMs = process.env.LI_REQUEST_DELAY_MAX_MS;
+		previousConnectionsCooldownMs = process.env.LI_CONNECTIONS_OF_COOLDOWN_RETRY_MS;
 		process.env.LI_REQUEST_DELAY_MIN_MS = "0";
 		process.env.LI_REQUEST_DELAY_MAX_MS = "0";
+		process.env.LI_CONNECTIONS_OF_COOLDOWN_RETRY_MS = "0";
 		mockFetch = vi.fn();
 		vi.stubGlobal("fetch", mockFetch);
 	});
@@ -91,6 +94,11 @@ describe("connections command", () => {
 			delete process.env.LI_REQUEST_DELAY_MAX_MS;
 		} else {
 			process.env.LI_REQUEST_DELAY_MAX_MS = previousDelayMaxMs;
+		}
+		if (previousConnectionsCooldownMs === undefined) {
+			delete process.env.LI_CONNECTIONS_OF_COOLDOWN_RETRY_MS;
+		} else {
+			process.env.LI_CONNECTIONS_OF_COOLDOWN_RETRY_MS = previousConnectionsCooldownMs;
 		}
 		vi.unstubAllGlobals();
 		vi.clearAllMocks();
@@ -347,12 +355,13 @@ describe("connections command", () => {
 				.mockResolvedValueOnce(mockRecipientLookupResponse())
 				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 10)))
 				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(10, 10)))
-				.mockResolvedValueOnce(mockFlagshipResponse(""));
+				.mockResolvedValue(mockFlagshipResponse(""));
 
 			const result = await connections(mockCredentials, {
 				json: true,
 				all: true,
 				of: "peggyrayzis",
+				network: ["1st", "2nd", "3rd"],
 			});
 			const parsed = JSON.parse(result);
 
@@ -362,7 +371,34 @@ describe("connections command", () => {
 				count: 20,
 				start: 0,
 			});
-			expect(mockFetch).toHaveBeenCalledTimes(4);
+			expect(mockFetch.mock.calls.length).toBeGreaterThanOrEqual(4);
+		});
+
+		it("continues pagination after a transient empty connectionOf page", async () => {
+			mockFetch
+				.mockResolvedValueOnce(mockRecipientLookupResponse())
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 10)))
+				.mockResolvedValueOnce(mockFlagshipResponse(""))
+				.mockResolvedValueOnce(mockFlagshipResponse(""))
+				.mockResolvedValueOnce(mockFlagshipResponse(""))
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(10, 10)));
+
+			const result = await connections(mockCredentials, {
+				json: true,
+				count: 15,
+				of: "peggyrayzis",
+			});
+			const parsed = JSON.parse(result);
+
+			expect(parsed.connections).toHaveLength(15);
+			expect(mockFetch).toHaveBeenCalledTimes(6);
+			expect(mockFetch).toHaveBeenNthCalledWith(
+				6,
+				expect.any(String),
+				expect.objectContaining({
+					body: expect.stringContaining("SearchResultsauto-binding-5"),
+				}),
+			);
 		});
 	});
 

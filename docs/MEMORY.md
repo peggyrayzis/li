@@ -27,3 +27,13 @@ Append-only log. Add entries; do not rewrite historical entries except typo fixe
 - Correction: `connections --of <username>` passed the public handle directly into the search `connectionOf` filter, which can return unrelated people instead of the target member's actual network.
 - Fix: `connections --of` now resolves usernames/profile URLs to a canonical profile URN first and uses the extracted profile ID in request URL/body filters.
 - Guardrail: command tests now cover the profile-resolution request path for `--of` and keep pagination assertions around the resolved profile ID flow.
+
+## 2026-02-25
+- Correction: large `connections --of --all` queries can return sparse/unstable pages when fetching a combined multi-degree slice in one pass.
+- Fix: default `--all --of` now fetches each degree slice (`1st`, `2nd`, `3rd`) separately and merges by username, while keeping parser fallback for search stream pages that omit strict action-slot metadata.
+- Guardrail: parser tests now validate strict vs relaxed action-slot filtering, and command tests cover transient empty pages during `connectionOf` pagination.
+
+## 2026-02-25
+- Correction: `connections --of` pagination can be upstream-capped by LinkedIn at roughly two pages even when additional pages are requested and return HTTP 200.
+- Fix: kept the flagship `connections --of` flow as the default stable backend and constrained `search/dash/clusters` to explicit experimental opt-in only.
+- Guardrail: treat `--of --all` as potentially partial under clamp conditions, and keep any alternate expansion strategies behind feature flags until verified stable.
