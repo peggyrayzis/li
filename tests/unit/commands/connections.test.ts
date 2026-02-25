@@ -162,14 +162,14 @@ describe("connections command", () => {
 				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 2)))
 				.mockResolvedValue(mockFlagshipResponse(""));
 
-			await connections(mockCredentials, { of: "urn:li:member:229437279" });
+			await connections(mockCredentials, { of: "urn:li:member:123456789" });
 
 			expect(mockFetch).toHaveBeenCalledWith(
 				expect.stringContaining(
-					"/flagship-web/search/results/people/?origin=FACETED_SEARCH&connectionOf=%22229437279%22",
+					"/flagship-web/search/results/people/?origin=FACETED_SEARCH&connectionOf=%22123456789%22",
 				),
 				expect.objectContaining({
-					body: expect.stringContaining('"filterItemSingle":"229437279"'),
+					body: expect.stringContaining('"filterItemSingle":"123456789"'),
 				}),
 			);
 		});
