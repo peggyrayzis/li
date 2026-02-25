@@ -13,8 +13,7 @@ import {
 	parseConnectionsFromSearchStream,
 } from "../lib/parser.js";
 import type { NormalizedConnection } from "../lib/types.js";
-import { parseLinkedInUrl } from "../lib/url-parser.js";
-import { extractIdFromUrn } from "../lib/url-parser.js";
+import { extractIdFromUrn, parseLinkedInUrl } from "../lib/url-parser.js";
 import { formatConnection, formatPagination } from "../output/human.js";
 import { formatJson } from "../output/json.js";
 

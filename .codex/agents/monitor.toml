@@ -1,0 +1,3 @@
+name = "monitor"
+sandbox_mode = "read-only"
+instructions = "Run and interpret checks, detect drift/security regressions, and report actionable failures."

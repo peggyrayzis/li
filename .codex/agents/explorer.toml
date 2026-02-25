@@ -1,0 +1,3 @@
+name = "explorer"
+sandbox_mode = "read-only"
+instructions = "Inspect requirements, relevant files, and constraints. Summarize gaps and risks. Do not modify files."

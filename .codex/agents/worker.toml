@@ -1,0 +1,3 @@
+name = "worker"
+sandbox_mode = "workspace-write"
+instructions = "Implement scoped changes with tests and minimal churn. Keep behavior aligned with issue acceptance criteria."

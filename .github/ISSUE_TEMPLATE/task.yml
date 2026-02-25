@@ -1,0 +1,88 @@
+name: Task
+about: Track planned implementation work
+labels: [task]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Short description of the task.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Explicit in-scope and out-of-scope boundaries.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: List objective completion criteria.
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+    validations:
+      required: true
+
+  - type: textarea
+    id: role_plan
+    attributes:
+      label: Role Plan
+      description: How explorer/worker/monitor/reviewer are used.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: active_role
+    attributes:
+      label: Active Role
+      description: Current execution role.
+      options:
+        - explorer
+        - worker
+        - monitor
+        - reviewer
+    validations:
+      required: true
+
+  - type: textarea
+    id: watch_plan
+    attributes:
+      label: Watch Plan
+      description: Signals/checks to monitor during work.
+    validations:
+      required: true
+
+  - type: textarea
+    id: signatures
+    attributes:
+      label: Signatures
+      description: Who prepared, reviewed, and approved.
+      placeholder: |
+        - Prepared-by:
+        - Reviewed-by:
+        - Approved-by:
+    validations:
+      required: true
+
+  - type: input
+    id: artifact
+    attributes:
+      label: Artifact
+      description: Link to PR or branch artifact.
+      placeholder: https://github.com/.../pull/123
+    validations:
+      required: true
+
+  - type: textarea
+    id: review_report
+    attributes:
+      label: Review Report
+      description: Final review notes and follow-ups.
+    validations:
+      required: true
