@@ -60,11 +60,7 @@ fi
 
 run "${CLI[@]}" invites --json
 
-if [[ -f "www.linkedin.com.fullv3.har" ]]; then
-	run "${CLI[@]}" query-ids --json --har "www.linkedin.com.fullv3.har"
-else
-	echo "==> skipping query-ids (HAR missing: www.linkedin.com.fullv3.har)"
-fi
+run "${CLI[@]}" query-ids --json
 
 expect_failure "${CLI[@]}" connect "$OTHER_PROFILE_URL"
 expect_failure "${CLI[@]}" send "$OTHER_PROFILE_URL" "smoke test message"
