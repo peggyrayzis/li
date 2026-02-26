@@ -1,14 +1,22 @@
 # @peggyrayzis/li
 
+## 0.1.2
+
+### Patch Changes
+
+- ce0c590: Improve `connections --of` reliability by resolving profile identifiers to canonical IDs, hardening sparse-page pagination behavior, removing the unused experimental backend path, and documenting current upstream pagination clamp limitations.
+
 ## 0.1.1
 
 ### Highlights
+
 - Improved auth request correctness by using local timezone handling for `X-Li-Track` (#6).
 - Hardened `connections --of` and profile recipient resolution (#4).
 - Increased cookie extraction timeout for more reliable browser session reads (#3).
 - Added release automation with changelog + GitHub release + tag flow (#13, #14).
 
 ### Pull Requests
+
 - #14 ci: fix trusted publishing in release workflow
 - #13 chore: automate releases and prepare v0.1.1
 - #12 chore: remove unused claude post-edit hook
@@ -19,6 +27,7 @@
 - #1 fix whoami test failures in CI
 
 ### Commit Log
+
 - c53b221 ci: fix trusted publishing in release workflow (#14)
 - 0837fc3 chore: automate releases and prepare v0.1.1 (#13)
 - faa61c3 chore: remove unused claude post-edit hook (#12)
@@ -30,5 +39,6 @@
 - 90f68c6 add packageManager field for CI pnpm setup
 
 ### Contributors
+
 - @peggyrayzis
 - @michael-watson
