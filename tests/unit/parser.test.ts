@@ -314,6 +314,30 @@ describe("parser", () => {
 				urn: "urn:li:fsd_profile:ACoALLOW",
 			});
 		});
+
+		it("can disable actionSlots filtering for fallback parsing", () => {
+			const payload = `"actionSlots":{"ACoALLOW":"SearchResultsACoALLOW"},
+"viewName":"people-search-result",
+"profileId":"ACoBLOCK",
+"url":"https://www.linkedin.com/in/blocked-person/",
+"children":[["$","$L61","text-attr-0",{"children":["Blocked Person"]}]],
+"children":[["$","$L61","text-attr-0",{"children":["Engineer"]}]]`;
+
+			const strict = parseConnectionsFromSearchStream(payload);
+			const relaxed = parseConnectionsFromSearchStream(payload, {
+				enforceActionSlots: false,
+			});
+
+			expect(strict).toHaveLength(0);
+			expect(relaxed).toHaveLength(1);
+			expect(relaxed[0]).toMatchObject({
+				username: "blocked-person",
+				firstName: "Blocked",
+				lastName: "Person",
+				headline: "Engineer",
+				urn: "urn:li:fsd_profile:ACoBLOCK",
+			});
+		});
 	});
 
 	describe("parseConversation", () => {

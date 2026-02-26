@@ -25,6 +25,10 @@ Last Updated: 2026-02-25
 - Mandatory local checks: `npm run check`, `npm run security`, `bash scripts/check-docs.sh`.
 - Secret scanning and docs drift checks are required gates.
 
+## Known Limitations
+- `connections --of` relies on upstream LinkedIn search pagination behavior that can be account/session capped (often around two pages, ~20 results) even when additional page requests return HTTP 200.
+- `--all` for `connections --of` should be treated as potentially partial under active upstream clamp conditions.
+
 ## Related References
 - Process rules: `AGENTS.md`
 - Decisions: `docs/DECISIONS.md`

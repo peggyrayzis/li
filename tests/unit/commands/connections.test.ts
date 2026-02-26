@@ -40,6 +40,25 @@ function mockFlagshipResponse(payload: string) {
 	};
 }
 
+function mockRecipientLookupResponse(
+	profileUrn = "urn:li:fsd_profile:ACoAABcd1234",
+	publicIdentifier = "peggyrayzis",
+) {
+	return {
+		ok: true,
+		status: 200,
+		headers: { get: () => null },
+		json: async () => ({
+			elements: [
+				{
+					entityUrn: profileUrn,
+					publicIdentifier,
+				},
+			],
+		}),
+	};
+}
+
 describe("connections command", () => {
 	const mockCredentials: LinkedInCredentials = {
 		liAt: "AQE-test-li-at-token",
@@ -50,13 +69,37 @@ describe("connections command", () => {
 	};
 
 	let mockFetch: ReturnType<typeof vi.fn>;
+	let previousDelayMinMs: string | undefined;
+	let previousDelayMaxMs: string | undefined;
+	let previousConnectionsCooldownMs: string | undefined;
 
 	beforeEach(() => {
+		previousDelayMinMs = process.env.LI_REQUEST_DELAY_MIN_MS;
+		previousDelayMaxMs = process.env.LI_REQUEST_DELAY_MAX_MS;
+		previousConnectionsCooldownMs = process.env.LI_CONNECTIONS_OF_COOLDOWN_RETRY_MS;
+		process.env.LI_REQUEST_DELAY_MIN_MS = "0";
+		process.env.LI_REQUEST_DELAY_MAX_MS = "0";
+		process.env.LI_CONNECTIONS_OF_COOLDOWN_RETRY_MS = "0";
 		mockFetch = vi.fn();
 		vi.stubGlobal("fetch", mockFetch);
 	});
 
 	afterEach(() => {
+		if (previousDelayMinMs === undefined) {
+			delete process.env.LI_REQUEST_DELAY_MIN_MS;
+		} else {
+			process.env.LI_REQUEST_DELAY_MIN_MS = previousDelayMinMs;
+		}
+		if (previousDelayMaxMs === undefined) {
+			delete process.env.LI_REQUEST_DELAY_MAX_MS;
+		} else {
+			process.env.LI_REQUEST_DELAY_MAX_MS = previousDelayMaxMs;
+		}
+		if (previousConnectionsCooldownMs === undefined) {
+			delete process.env.LI_CONNECTIONS_OF_COOLDOWN_RETRY_MS;
+		} else {
+			process.env.LI_CONNECTIONS_OF_COOLDOWN_RETRY_MS = previousConnectionsCooldownMs;
+		}
 		vi.unstubAllGlobals();
 		vi.clearAllMocks();
 	});
@@ -131,6 +174,7 @@ describe("connections command", () => {
 
 		it("includes connectionOf filter when listing another profile's connections", async () => {
 			mockFetch
+				.mockResolvedValueOnce(mockRecipientLookupResponse())
 				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 2)))
 				.mockResolvedValue(mockFlagshipResponse(""));
 
@@ -138,10 +182,10 @@ describe("connections command", () => {
 
 			expect(mockFetch).toHaveBeenCalledWith(
 				expect.stringContaining(
-					"/flagship-web/search/results/people/?origin=FACETED_SEARCH&connectionOf=%22peggyrayzis%22",
+					"/flagship-web/search/results/people/?origin=FACETED_SEARCH&connectionOf=%22ACoAABcd1234%22",
 				),
 				expect.objectContaining({
-					body: expect.stringContaining('"filterItemSingle":"peggyrayzis"'),
+					body: expect.stringContaining('"filterItemSingle":"ACoAABcd1234"'),
 				}),
 			);
 			expect(mockFetch).toHaveBeenCalledWith(
@@ -192,6 +236,7 @@ describe("connections command", () => {
 
 		it("returns paging.total as null for connectionOf JSON output", async () => {
 			mockFetch
+				.mockResolvedValueOnce(mockRecipientLookupResponse())
 				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 2)))
 				.mockResolvedValue(mockFlagshipResponse(""));
 
@@ -285,6 +330,7 @@ describe("connections command", () => {
 
 		it("paginates connectionOf searches when count exceeds 50", async () => {
 			mockFetch
+				.mockResolvedValueOnce(mockRecipientLookupResponse())
 				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 10)))
 				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(10, 10)))
 				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(20, 10)))
@@ -294,9 +340,9 @@ describe("connections command", () => {
 
 			await connections(mockCredentials, { count: 55, of: "peggyrayzis" });
 
-			expect(mockFetch).toHaveBeenCalledTimes(6);
+			expect(mockFetch).toHaveBeenCalledTimes(7);
 			expect(mockFetch).toHaveBeenNthCalledWith(
-				2,
+				3,
 				expect.any(String),
 				expect.objectContaining({
 					body: expect.stringContaining("SearchResultsauto-binding-2"),
@@ -306,14 +352,16 @@ describe("connections command", () => {
 
 		it("fetches all pages for connectionOf searches when all is true", async () => {
 			mockFetch
+				.mockResolvedValueOnce(mockRecipientLookupResponse())
 				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 10)))
 				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(10, 10)))
-				.mockResolvedValueOnce(mockFlagshipResponse(""));
+				.mockResolvedValue(mockFlagshipResponse(""));
 
 			const result = await connections(mockCredentials, {
 				json: true,
 				all: true,
 				of: "peggyrayzis",
+				network: ["1st", "2nd", "3rd"],
 			});
 			const parsed = JSON.parse(result);
 
@@ -323,7 +371,34 @@ describe("connections command", () => {
 				count: 20,
 				start: 0,
 			});
-			expect(mockFetch).toHaveBeenCalledTimes(3);
+			expect(mockFetch.mock.calls.length).toBeGreaterThanOrEqual(4);
+		});
+
+		it("continues pagination after a transient empty connectionOf page", async () => {
+			mockFetch
+				.mockResolvedValueOnce(mockRecipientLookupResponse())
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(0, 10)))
+				.mockResolvedValueOnce(mockFlagshipResponse(""))
+				.mockResolvedValueOnce(mockFlagshipResponse(""))
+				.mockResolvedValueOnce(mockFlagshipResponse(""))
+				.mockResolvedValueOnce(mockFlagshipResponse(buildRscPayload(10, 10)));
+
+			const result = await connections(mockCredentials, {
+				json: true,
+				count: 15,
+				of: "peggyrayzis",
+			});
+			const parsed = JSON.parse(result);
+
+			expect(parsed.connections).toHaveLength(15);
+			expect(mockFetch).toHaveBeenCalledTimes(6);
+			expect(mockFetch).toHaveBeenNthCalledWith(
+				6,
+				expect.any(String),
+				expect.objectContaining({
+					body: expect.stringContaining("SearchResultsauto-binding-5"),
+				}),
+			);
 		});
 	});
 

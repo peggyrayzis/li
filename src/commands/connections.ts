@@ -3,6 +3,7 @@
  * Supports pagination with --start and --count options.
  */
 
+import fs from "node:fs";
 import type { LinkedInCredentials } from "../lib/auth.js";
 import { LinkedInClient } from "../lib/client.js";
 import { buildHeaders } from "../lib/headers.js";
@@ -12,6 +13,7 @@ import {
 	parseConnectionsFromSearchHtml,
 	parseConnectionsFromSearchStream,
 } from "../lib/parser.js";
+import { resolveRecipient } from "../lib/recipient.js";
 import type { NormalizedConnection } from "../lib/types.js";
 import { extractIdFromUrn, parseLinkedInUrl } from "../lib/url-parser.js";
 import { formatConnection, formatPagination } from "../output/human.js";
@@ -51,8 +53,11 @@ const CONNECTIONS_OF_ORIGIN = "FACETED_SEARCH";
 const FAST_DELAY_MIN_MS = 200;
 const FAST_DELAY_MAX_MS = 600;
 const MAX_STALL_PAGES = 3;
+const MAX_EMPTY_SEARCH_PAGES = 4;
 const DEBUG_CONNECTIONS =
 	process.env.LI_DEBUG_CONNECTIONS === "1" || process.env.LI_DEBUG_CONNECTIONS === "true";
+const DEBUG_CONNECTIONS_DUMP =
+	process.env.LI_DEBUG_CONNECTIONS_DUMP === "1" || process.env.LI_DEBUG_CONNECTIONS_DUMP === "true";
 const PROFILE_IDENTIFIER_PATTERN = /^[A-Za-z0-9_-]+$/;
 const DEFAULT_NETWORK_DEGREES: NetworkDegree[] = ["1st", "2nd", "3rd"];
 const NETWORK_FILTERS: Record<NetworkDegree, string> = {
@@ -92,7 +97,7 @@ export async function connections(
 	const count = fetchAll ? null : Math.max(0, requestedCount);
 	const connectionOfIdentifier = options.of?.trim();
 	const connectionOfId = connectionOfIdentifier
-		? normalizeConnectionOfIdentifier(connectionOfIdentifier)
+		? await normalizeConnectionOfIdentifier(client, connectionOfIdentifier)
 		: null;
 	const networkDegrees = connectionOfId
 		? options.network && options.network.length > 0
@@ -108,9 +113,15 @@ export async function connections(
 	const requestUrl = connectionOfId
 		? buildConnectionsOfRequestUrl(connectionOfId, 1, networkFilters)
 		: FLAGSHIP_CONNECTIONS_URL;
+	const pageBindingRef: { value?: string } = {};
 	const buildBody = connectionOfId
 		? (startIndex: number, _pageSize: number) =>
-				buildConnectionsOfSearchBody(startIndex, connectionOfId ?? "", networkFilters)
+				buildConnectionsOfSearchBody(
+					startIndex,
+					connectionOfId ?? "",
+					networkFilters,
+					pageBindingRef.value,
+				)
 		: buildConnectionsPaginationBody;
 	const effectiveStart =
 		connectionOfId && start > 0
@@ -164,6 +175,7 @@ export async function connections(
 			connectionOfId ? CONNECTIONS_OF_PAGE_SIZE : undefined,
 			Boolean(connectionOfId),
 			progress?.update,
+			connectionOfId ? pageBindingRef : undefined,
 		);
 	} finally {
 		progress?.done(fetchResult.connections.length);
@@ -204,6 +216,7 @@ async function fetchConnectionsFromFlagship(
 	pageStep?: number,
 	preferSearchParser = false,
 	onProgress?: ProgressReporter["update"],
+	pageBindingRef?: { value?: string },
 ): Promise<{ connections: NormalizedConnection[]; hitMaxIterations: boolean }> {
 	const connections: NormalizedConnection[] = [];
 	const seen = new Set<string>();
@@ -211,6 +224,7 @@ async function fetchConnectionsFromFlagship(
 	let iterations = 0;
 	let remainingSkip = Math.max(0, skip);
 	let stallPages = 0;
+	let emptySearchPages = 0;
 	const targetCount = count ?? Number.POSITIVE_INFINITY;
 	const estimatedPageSize = pageStep && pageStep > 0 ? pageStep : 50;
 	const maxIterations =
@@ -229,7 +243,7 @@ async function fetchConnectionsFromFlagship(
 		if (DEBUG_CONNECTIONS) {
 			const preview = body.length > 2000 ? `${body.slice(0, 2000)}…` : body;
 			process.stderr.write(
-				`[li][connections] url=${effectiveUrl} start=${currentStart} pageSize=${pageSize} body=${preview}\n`,
+				`[li][connections] url=${effectiveUrl} start=${currentStart} pageSize=${pageSize} binding=${pageBindingRef?.value ?? "none"} body=${preview}\n`,
 			);
 		}
 		const response = await client.requestAbsolute(effectiveUrl, {
@@ -245,10 +259,35 @@ async function fetchConnectionsFromFlagship(
 
 		const buffer = await response.arrayBuffer();
 		const payload = new TextDecoder("utf-8").decode(buffer);
+		if (pageBindingRef) {
+			const bindingMatch = payload.match(
+				/currentIndicatorIndexBinding"\s*:\s*\{[\s\S]{0,300}?"value":"(SearchResultsauto-binding-[A-Za-z0-9-]+)"/,
+			);
+			if (bindingMatch?.[0]) {
+				pageBindingRef.value = bindingMatch[1];
+				if (DEBUG_CONNECTIONS) {
+					process.stderr.write(
+						`[li][connections] detectedBinding=${pageBindingRef.value} start=${currentStart}\n`,
+					);
+				}
+			}
+		}
 		if (DEBUG_CONNECTIONS) {
 			const preview = payload.length > 2000 ? `${payload.slice(0, 2000)}…` : payload;
+			const peopleMarkerCount = payload.split('viewName":"people-search-result"').length - 1;
+			const miniProfileCount = payload.split('"miniProfile"').length - 1;
+			const commercialLimit = payload.includes("commercial use limit");
+			const authwall = payload.includes("authwall");
+			if (DEBUG_CONNECTIONS_DUMP && (peopleMarkerCount === 0 || currentStart <= 10)) {
+				try {
+					const label = peopleMarkerCount === 0 ? "empty" : "page";
+					fs.writeFileSync(`/tmp/li-connections-${label}-${currentStart}.txt`, payload);
+				} catch {
+					// Best-effort debug dump.
+				}
+			}
 			process.stderr.write(
-				`[li][connections] payload_length=${payload.length} preview=${preview}\n`,
+				`[li][connections] payload_length=${payload.length} peopleMarkers=${peopleMarkerCount} miniProfiles=${miniProfileCount} commercialLimit=${commercialLimit} authwall=${authwall} preview=${preview}\n`,
 			);
 		}
 		let pageConnections: NormalizedConnection[] = [];
@@ -258,6 +297,13 @@ async function fetchConnectionsFromFlagship(
 			pageConnections = isHtml
 				? parseConnectionsFromSearchHtml(payload)
 				: parseConnectionsFromSearchStream(payload);
+			if (pageConnections.length === 0) {
+				if (!isHtml) {
+					pageConnections = parseConnectionsFromSearchStream(payload, {
+						enforceActionSlots: false,
+					});
+				}
+			}
 			if (pageConnections.length === 0) {
 				const htmlFallback = parseConnectionsFromSearchHtml(payload);
 				pageConnections =
@@ -275,7 +321,28 @@ async function fetchConnectionsFromFlagship(
 		}
 
 		if (pageConnections.length === 0) {
+			if (preferSearchParser) {
+				emptySearchPages += 1;
+				if (DEBUG_CONNECTIONS) {
+					process.stderr.write(
+						`[li][connections] parsed=0 emptySearchPages=${emptySearchPages} start=${currentStart}\n`,
+					);
+				}
+				if (emptySearchPages >= MAX_EMPTY_SEARCH_PAGES) {
+					break;
+				}
+				const advanceBy = pageStep && pageStep > 0 ? pageStep : estimatedPageSize;
+				currentStart += advanceBy;
+				iterations += 1;
+				continue;
+			}
 			break;
+		}
+		emptySearchPages = 0;
+		if (DEBUG_CONNECTIONS) {
+			process.stderr.write(
+				`[li][connections] parsed=${pageConnections.length} start=${currentStart}\n`,
+			);
 		}
 
 		let added = 0;
@@ -297,11 +364,21 @@ async function fetchConnectionsFromFlagship(
 
 		if (added === 0 && remainingSkip === 0) {
 			stallPages += 1;
+			if (DEBUG_CONNECTIONS) {
+				process.stderr.write(
+					`[li][connections] added=0 stallPages=${stallPages} start=${currentStart}\n`,
+				);
+			}
 			if (stallPages >= MAX_STALL_PAGES) {
 				break;
 			}
 		} else if (added > 0) {
 			stallPages = 0;
+			if (DEBUG_CONNECTIONS) {
+				process.stderr.write(
+					`[li][connections] added=${added} total=${connections.length} start=${currentStart}\n`,
+				);
+			}
 		}
 
 		onProgress?.({
@@ -465,7 +542,12 @@ function buildConnectionsPaginationBody(
 	};
 }
 
-function normalizeConnectionOfIdentifier(identifier: string): string {
+const PROFILE_ID_PATTERN = /^ACo[A-Za-z0-9_-]+$/;
+
+async function normalizeConnectionOfIdentifier(
+	client: LinkedInClient,
+	identifier: string,
+): Promise<string> {
 	const parsed = parseLinkedInUrl(identifier);
 	if (!parsed || parsed.type !== "profile") {
 		throw new Error(
@@ -473,10 +555,10 @@ function normalizeConnectionOfIdentifier(identifier: string): string {
 		);
 	}
 
-	const normalized = parsed.identifier.startsWith("urn:li:")
-		? extractIdFromUrn(parsed.identifier)
-		: parsed.identifier;
-	const value = normalized.trim();
+	const trimmedIdentifier = parsed.identifier.trim();
+	const value = trimmedIdentifier.startsWith("urn:li:")
+		? extractIdFromUrn(trimmedIdentifier).trim()
+		: trimmedIdentifier;
 
 	if (!value || !PROFILE_IDENTIFIER_PATTERN.test(value)) {
 		throw new Error(
@@ -484,7 +566,19 @@ function normalizeConnectionOfIdentifier(identifier: string): string {
 		);
 	}
 
-	return value;
+	if (trimmedIdentifier.startsWith("urn:li:") || PROFILE_ID_PATTERN.test(value)) {
+		return value;
+	}
+
+	const resolved = await resolveRecipient(client, identifier);
+	const resolvedId = extractIdFromUrn(resolved.urn).trim();
+	if (!resolvedId || !PROFILE_IDENTIFIER_PATTERN.test(resolvedId)) {
+		throw new Error(
+			`Could not resolve --of value: ${identifier}. Provide a profile username, profile URL, or profile URN.`,
+		);
+	}
+
+	return resolvedId;
 }
 
 function buildConnectionsOfQuery(
@@ -537,9 +631,13 @@ function buildConnectionsOfSearchBody(
 	startIndex: number,
 	connectionOfId: string,
 	networkFilters?: string[],
+	pageBindingKey?: string,
 ): Record<string, unknown> {
-	const page = Math.floor(startIndex / CONNECTIONS_OF_PAGE_SIZE) + 1;
-	const pageKey = `SearchResultsauto-binding-${page}`;
+	const pageIndex = Math.floor(startIndex / CONNECTIONS_OF_PAGE_SIZE);
+	const page = pageIndex + 1;
+	const pageKey = pageBindingKey ?? `SearchResultsauto-binding-${page}`;
+	const pageStateValue = page;
+	const pageForPath = pageBindingKey ? 1 : page;
 	const networkFilter =
 		networkFilters && networkFilters.length > 0
 			? { filterKey: "network", filterList: networkFilters }
@@ -581,7 +679,7 @@ function buildConnectionsOfSearchBody(
 			},
 			url: "",
 		},
-		url: buildConnectionsOfSearchPath(connectionOfId, page, networkFilters),
+		url: buildConnectionsOfSearchPath(connectionOfId, pageForPath, networkFilters),
 		inheritActor: false,
 		colorScheme: "ColorScheme_UNKNOWN",
 		disableScreenGutters: false,
@@ -633,11 +731,23 @@ function buildConnectionsOfSearchBody(
 				],
 				spellCorrectionEnabled: true,
 			},
+			requestedStateKeys: [
+				{
+					$type: "proto.sdui.StateKey",
+					value: pageKey,
+					key: {
+						$type: "proto.sdui.Key",
+						value: { $case: "id", id: pageKey },
+					},
+					namespace: "MemoryNamespace",
+					isEncrypted: false,
+				},
+			],
 			states: [
 				{
 					key: pageKey,
 					namespace: "MemoryNamespace",
-					value: page,
+					value: pageStateValue,
 					originalProtoCase: "intValue",
 				},
 			],
