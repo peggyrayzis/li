@@ -177,10 +177,10 @@ A few ground rules:
 ## Releasing
 
 - Add a changeset for user-facing updates: `pnpm changeset`
-- Merge PRs to `main` as usual.
-- The `Release` GitHub Action opens/updates a release PR with version bumps + `CHANGELOG.md`.
-- Merging that release PR publishes to npm and creates a GitHub release.
-- Release notes are auto-generated with pull requests, commit log, contributors, and a compare link.
+- Merge feature PRs to `main`.
+- Cut a release PR manually: `bash scripts/cut-release-pr.sh`
+- Merge the generated `chore: release` PR.
+- Run the `Release` workflow manually (`workflow_dispatch`) to publish npm + tag + GitHub release notes.
 
 ## Disclaimer
 
