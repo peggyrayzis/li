@@ -154,6 +154,7 @@ describe("connections command", () => {
 				lastName: "0",
 				username: "user0",
 				headline: "Headline 0",
+				location: "",
 			});
 		});
 

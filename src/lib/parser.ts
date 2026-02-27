@@ -125,6 +125,7 @@ function parseMiniProfile(
 			firstName: "",
 			lastName: "",
 			headline: "",
+			location: "",
 			profileUrl: LINKEDIN_PROFILE_BASE_URL,
 		};
 	}
@@ -132,6 +133,10 @@ function parseMiniProfile(
 	const username = (miniProfile.publicIdentifier as string) || "";
 	const firstName = (miniProfile.firstName as string) || "";
 	const lastName = (miniProfile.lastName as string) || "";
+	const location =
+		extractLocalized(miniProfile.locationName as LocalizedField | string | undefined) ||
+		extractString(miniProfile.geoLocationName) ||
+		"";
 
 	return {
 		urn,
@@ -139,6 +144,7 @@ function parseMiniProfile(
 		firstName,
 		lastName,
 		headline: (miniProfile.occupation as string) || "",
+		location,
 		profileUrl: `${LINKEDIN_PROFILE_BASE_URL}${username}`,
 	};
 }
@@ -161,6 +167,10 @@ function parseParticipantType(
 			firstName: extractText(member.firstName as TextField),
 			lastName: extractText(member.lastName as TextField),
 			headline: extractText(member.headline as TextField),
+			location:
+				extractText(member.locationName as TextField) ||
+				extractString(member.geoLocationName) ||
+				"",
 			profileUrl,
 		};
 	}
@@ -174,6 +184,7 @@ function parseParticipantType(
 			firstName: extractText(organization.name as TextField),
 			lastName: "",
 			headline: extractText(organization.tagline as TextField),
+			location: "",
 			profileUrl,
 		};
 	}
@@ -184,6 +195,7 @@ function parseParticipantType(
 		firstName: "",
 		lastName: "",
 		headline: "",
+		location: "",
 		profileUrl: LINKEDIN_PROFILE_BASE_URL,
 	};
 }
@@ -258,6 +270,7 @@ export function parseConnection(raw: Record<string, unknown>): NormalizedConnect
 			firstName: "",
 			lastName: "",
 			headline: "",
+			location: "",
 			profileUrl: LINKEDIN_PROFILE_BASE_URL,
 		};
 	}
@@ -272,6 +285,7 @@ export function parseConnection(raw: Record<string, unknown>): NormalizedConnect
 		firstName,
 		lastName,
 		headline: extractLocalized(profile.headline as LocalizedField),
+		location: extractLocalized(profile.locationName as LocalizedField),
 		profileUrl: `${LINKEDIN_PROFILE_BASE_URL}${username}`,
 	};
 }
@@ -316,6 +330,7 @@ export function parseConnectionsFromFlagshipRsc(payload: string): NormalizedConn
 			firstName,
 			lastName,
 			headline,
+			location: "",
 			profileUrl,
 		});
 	}
@@ -330,7 +345,7 @@ export function parseConnectionsFromFlagshipRsc(payload: string): NormalizedConn
 export function parseConnectionsFromSearchHtml(payload: string): NormalizedConnection[] {
 	const normalizedPayload = payload.replace(/\\u002F/g, "/").replace(/\\\//g, "/");
 	const miniProfileRegex =
-		/"miniProfile":\{[\s\S]{0,800}?"publicIdentifier":"([^"]+)"[\s\S]{0,800}?"firstName":"([^"]*)"[\s\S]{0,800}?"lastName":"([^"]*)"[\s\S]{0,800}?"occupation":"([^"]*)"/g;
+		/"miniProfile":\{[\s\S]{0,1200}?"publicIdentifier":"([^"]+)"[\s\S]{0,1200}?"firstName":"([^"]*)"[\s\S]{0,1200}?"lastName":"([^"]*)"[\s\S]{0,1200}?"(?:occupation|headline)":"([^"]*)"/g;
 
 	const results: NormalizedConnection[] = [];
 	const seen = new Set<string>();
@@ -340,10 +355,19 @@ export function parseConnectionsFromSearchHtml(payload: string): NormalizedConne
 		if (!match) {
 			break;
 		}
-		const username = match[1];
+		const username = match[1] ?? "";
 		const firstName = match[2] ?? "";
 		const lastName = match[3] ?? "";
 		const headline = match[4] ?? "";
+		const nextMatchStart = normalizedPayload.indexOf('"miniProfile":{', match.index + 1);
+		const profileChunk = normalizedPayload.slice(
+			match.index,
+			nextMatchStart === -1 ? normalizedPayload.length : nextMatchStart,
+		);
+		const location =
+			profileChunk.match(/"locationName":"([^"]*)"/)?.[1] ??
+			profileChunk.match(/"geoLocationName":"([^"]*)"/)?.[1] ??
+			"";
 
 		if (!username || seen.has(username)) {
 			continue;
@@ -356,6 +380,7 @@ export function parseConnectionsFromSearchHtml(payload: string): NormalizedConne
 			firstName,
 			lastName,
 			headline,
+			location,
 			profileUrl: `${LINKEDIN_PROFILE_BASE_URL}${username}`,
 		});
 	}
@@ -373,6 +398,7 @@ export function parseConnectionsFromSearchStream(
 ): NormalizedConnection[] {
 	const normalizedPayload = payload.replace(/\\u002F/g, "/").replace(/\\\//g, "/");
 	const marker = 'viewName":"people-search-result"';
+	const maxResultChunkLength = 26000;
 	const results: NormalizedConnection[] = [];
 	const seen = new Set<string>();
 	const enforceActionSlots = options.enforceActionSlots ?? true;
@@ -452,6 +478,12 @@ export function parseConnectionsFromSearchStream(
 			if (value.startsWith("•") || value.toLowerCase().includes("connections")) {
 				continue;
 			}
+			if (!/[A-Za-z]/.test(value) || value.length < 2) {
+				continue;
+			}
+			if (/^[a-z]/.test(value)) {
+				continue;
+			}
 			return candidate;
 		}
 		return undefined;
@@ -464,7 +496,44 @@ export function parseConnectionsFromSearchStream(
 		return /^•?\s*\d+(st|nd|rd|th)\+?\b/i.test(value.trim());
 	};
 
+	const isLocationCandidate = (value: string): boolean => {
+		const normalized = value.trim();
+		if (!normalized) {
+			return false;
+		}
+		if (normalized.startsWith("•") || /connections|followers|mutual/i.test(normalized)) {
+			return false;
+		}
+		if (normalized.includes("|") || normalized.length > 80) {
+			return false;
+		}
+		if (/remote|hybrid|on[- ]site/i.test(normalized)) {
+			return true;
+		}
+		if (/,/.test(normalized)) {
+			return true;
+		}
+		return /(metropolitan area|bay area|region|province|county|district|united states|united kingdom|canada|india)$/i.test(
+			normalized,
+		);
+	};
+
 	const normalizeDegree = (value: string): string => value.replace(/^•\s*/, "").trim();
+
+	const isLikelyPersonName = (value: string): boolean => {
+		const normalized = value.trim();
+		if (!normalized) {
+			return false;
+		}
+		if (normalized.length > 60 || normalized.includes("|")) {
+			return false;
+		}
+		const words = normalized.split(/\s+/).filter(Boolean);
+		if (words.length < 2 || words.length > 4) {
+			return false;
+		}
+		return words.every((word) => /^[A-Z][A-Za-z'’.-]*$/.test(word));
+	};
 
 	const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -497,7 +566,12 @@ export function parseConnectionsFromSearchStream(
 		if (start === -1) {
 			break;
 		}
-		const chunk = normalizedPayload.slice(start, start + 12000);
+		const nextStart = normalizedPayload.indexOf(marker, start + marker.length);
+		const chunkEnd =
+			nextStart === -1
+				? Math.min(normalizedPayload.length, start + maxResultChunkLength)
+				: Math.min(nextStart, start + maxResultChunkLength);
+		const chunk = normalizedPayload.slice(start, chunkEnd);
 		const urlMatch = chunk.match(/"url":"https:\/\/www\.linkedin\.com\/in\/([^"/]+)\//);
 		if (!urlMatch) {
 			index = start + marker.length;
@@ -560,7 +634,45 @@ export function parseConnectionsFromSearchStream(
 		);
 		const connectionDegree = degreeCandidate ? normalizeDegree(degreeCandidate.decoded) : "";
 
+		const socialProofChunk =
+			socialProofIndex !== -1
+				? chunk.slice(socialProofIndex, Math.min(chunk.length, socialProofIndex + 16000))
+				: "";
+		const socialProofTexts = socialProofChunk
+			? Array.from(
+					new Set(
+						collectTextCandidates(socialProofChunk)
+							.map((candidate) => candidate.decoded.trim())
+							.filter((value) => value && !value.startsWith("$") && value !== "$undefined"),
+					),
+				)
+			: [];
+		const mutualText = socialProofTexts.find((value) => /mutual connections?/i.test(value));
+		const mutualTextIndex = mutualText ? socialProofTexts.indexOf(mutualText) : -1;
+		const mutualNameWindow =
+			mutualTextIndex >= 0
+				? socialProofTexts.slice(Math.max(0, mutualTextIndex - 5), mutualTextIndex)
+				: [];
+		const mutualNames = mutualNameWindow.filter((value) => isLikelyPersonName(value)).slice(0, 5);
+		const otherMutualMatch = mutualText?.match(/(\d+)\s+other mutual connections?/i);
+		const directMutualMatch = mutualText?.match(/(\d+)\s+mutual connections?/i);
+		const mutualCount = otherMutualMatch?.[1]
+			? Number(otherMutualMatch[1]) + mutualNames.length
+			: directMutualMatch?.[1]
+				? Number(directMutualMatch[1])
+				: mutualText
+					? Math.max(1, mutualNames.length)
+					: 0;
+		const mutualConnections =
+			mutualCount > 0
+				? {
+						count: mutualCount,
+						...(mutualNames.length > 0 ? { names: mutualNames } : {}),
+					}
+				: undefined;
+
 		let headline = "";
+		let location = "";
 		const startIndex = nameIndex >= 0 ? nameIndex + 1 : 0;
 		for (let i = startIndex; i < headlineCandidates.length; i += 1) {
 			const value = headlineCandidates[i]?.decoded ?? "";
@@ -573,8 +685,23 @@ export function parseConnectionsFromSearchStream(
 			if (value.startsWith("•") || /connections|followers|mutual/i.test(value)) {
 				continue;
 			}
-			headline = value;
-			break;
+			if (/^[a-z]/.test(value) || value.endsWith("-")) {
+				continue;
+			}
+
+			if (!headline) {
+				if (isLocationCandidate(value)) {
+					location = value;
+					continue;
+				}
+				headline = value;
+				continue;
+			}
+
+			if (!location && isLocationCandidate(value)) {
+				location = value;
+				break;
+			}
 		}
 
 		seen.add(username);
@@ -584,8 +711,10 @@ export function parseConnectionsFromSearchStream(
 			firstName,
 			lastName,
 			headline,
+			location,
 			profileUrl: `${LINKEDIN_PROFILE_BASE_URL}${username}`,
 			...(connectionDegree ? { connectionDegree } : {}),
+			...(mutualConnections ? { mutualConnections } : {}),
 		});
 
 		index = start + marker.length;
@@ -906,6 +1035,7 @@ export function parseConversation(raw: Record<string, unknown>): NormalizedConve
 		firstName: "",
 		lastName: "",
 		headline: "",
+		location: "",
 		profileUrl: LINKEDIN_PROFILE_BASE_URL,
 	};
 

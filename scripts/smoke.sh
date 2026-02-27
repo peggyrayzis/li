@@ -6,6 +6,7 @@ cd "$ROOT_DIR"
 
 OTHER_PROFILE_URL="${LI_SMOKE_OTHER_PROFILE_URL:-https://www.linkedin.com/in/mnmagan}"
 COUNT="${LI_SMOKE_COUNT:-3}"
+SEARCH_QUERY="${LI_SMOKE_SEARCH_QUERY:-react developers in san francisco at AI companies}"
 
 run() {
 	echo "==> $*"
@@ -43,6 +44,18 @@ run "${CLI[@]}" profile "https://www.linkedin.com/in/$OWN_USERNAME" --json
 
 run "${CLI[@]}" connections -n "$COUNT" --json
 run "${CLI[@]}" connections -n "$COUNT" --json --of "$OTHER_PROFILE_URL"
+
+echo "==> ${CLI[*]} search --query \"$SEARCH_QUERY\" -n $COUNT --json"
+SEARCH_JSON="$("${CLI[@]}" search --query "$SEARCH_QUERY" -n "$COUNT" --json)"
+printf "%s" "$SEARCH_JSON" | node -e '
+const fs = require("node:fs");
+const data = JSON.parse(fs.readFileSync(0, "utf8"));
+if (!Object.prototype.hasOwnProperty.call(data, "query")) process.exit(1);
+if (!Object.prototype.hasOwnProperty.call(data, "limitApplied")) process.exit(1);
+if (!Array.isArray(data.connections)) process.exit(1);
+if (!data.paging || typeof data.paging !== "object") process.exit(1);
+console.log(`    query="${data.query}" results=${data.connections.length}`);
+'
 
 echo "==> ${CLI[*]} messages -n $COUNT --json"
 MESSAGES_JSON="$("${CLI[@]}" messages -n "$COUNT" --json)"

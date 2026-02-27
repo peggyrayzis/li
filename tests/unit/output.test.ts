@@ -144,6 +144,7 @@ describe("output", () => {
 				firstName: "Jane",
 				lastName: "Smith",
 				headline: "Engineering Lead at Acme",
+				location: "San Francisco Bay Area",
 				profileUrl: "https://www.linkedin.com/in/janesmith",
 			};
 
@@ -160,6 +161,19 @@ describe("output", () => {
 			it("shows username handle", () => {
 				const result = formatConnection(connection);
 				expect(result).toContain("@janesmith");
+			});
+
+			it("shows location when available", () => {
+				const result = formatConnection(connection);
+				expect(result).toContain("San Francisco Bay Area");
+			});
+
+			it("shows mutual connections when available", () => {
+				const result = formatConnection({
+					...connection,
+					mutualConnections: { count: 8 },
+				});
+				expect(result).toContain("8 mutual connections");
 			});
 
 			it("handles missing headline", () => {
@@ -182,6 +196,7 @@ describe("output", () => {
 					firstName: "John",
 					lastName: "Doe",
 					headline: "Product Manager",
+					location: "",
 					profileUrl: "https://www.linkedin.com/in/johndoe",
 				},
 				lastMessage: "Hey, quick question about your talk...",
@@ -238,6 +253,7 @@ describe("output", () => {
 					firstName: "John",
 					lastName: "Doe",
 					headline: "Product Manager",
+					location: "",
 					profileUrl: "https://www.linkedin.com/in/johndoe",
 				},
 				body: "Thanks for connecting! I really enjoyed your talk at the conference.",
@@ -323,6 +339,7 @@ describe("output", () => {
 					firstName: "Sarah",
 					lastName: "Connor",
 					headline: "CTO at Cyberdyne",
+					location: "",
 					profileUrl: "https://www.linkedin.com/in/sarahconnor",
 				},
 				message: "Hi! I saw your post about developer marketing. Would love to connect!",

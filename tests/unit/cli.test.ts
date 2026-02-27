@@ -12,6 +12,7 @@ const mockAcceptInvite = vi.fn();
 const mockListConversations = vi.fn();
 const mockReadConversation = vi.fn();
 const mockSend = vi.fn();
+const mockSearch = vi.fn();
 const mockResolveCredentials = vi.fn();
 
 vi.mock("../../src/commands/whoami.js", () => ({ whoami: mockWhoami }));
@@ -28,6 +29,7 @@ vi.mock("../../src/commands/messages.js", () => ({
 	readConversation: mockReadConversation,
 }));
 vi.mock("../../src/commands/send.js", () => ({ send: mockSend }));
+vi.mock("../../src/commands/search.js", () => ({ search: mockSearch }), { virtual: true });
 vi.mock("../../src/lib/auth.js", () => ({ resolveCredentials: mockResolveCredentials }));
 
 // Mock console methods (spied to capture output and prevent test noise)
@@ -383,6 +385,91 @@ describe("CLI", () => {
 				start: 0,
 				of: "peggyrayzis",
 			});
+		});
+	});
+
+	describe("search command", () => {
+		it("calls search with required --query and default options", async () => {
+			mockSearch.mockResolvedValue("Search results");
+			vi.resetModules();
+
+			const originalArgv = process.argv;
+			process.argv = ["node", "li", "search", "--query", "devtools"];
+
+			try {
+				await import("../../src/cli.js");
+				await new Promise((r) => setTimeout(r, 10));
+			} finally {
+				process.argv = originalArgv;
+			}
+
+			expect(mockSearch).toHaveBeenCalledWith(
+				mockCredentials,
+				expect.objectContaining({
+					query: "devtools",
+					json: undefined,
+					all: undefined,
+					count: 20,
+					noProgress: false,
+				}),
+			);
+		});
+
+		it("maps --count, --all, --json, --fast, and --no-progress options", async () => {
+			mockSearch.mockResolvedValue("Search results");
+			vi.resetModules();
+
+			const originalArgv = process.argv;
+			process.argv = [
+				"node",
+				"li",
+				"--no-progress",
+				"search",
+				"--query",
+				"founder",
+				"-n",
+				"200",
+				"--all",
+				"--fast",
+				"--json",
+			];
+
+			try {
+				await import("../../src/cli.js");
+				await new Promise((r) => setTimeout(r, 10));
+			} finally {
+				process.argv = originalArgv;
+			}
+
+			expect(mockSearch).toHaveBeenCalledWith(
+				mockCredentials,
+				expect.objectContaining({
+					query: "founder",
+					json: true,
+					all: true,
+					count: 200,
+					fast: true,
+					noProgress: true,
+				}),
+			);
+		});
+
+		it("requires --query", async () => {
+			mockSearch.mockResolvedValue("Search results");
+			vi.resetModules();
+
+			const originalArgv = process.argv;
+			process.argv = ["node", "li", "search"];
+
+			try {
+				await import("../../src/cli.js");
+				await new Promise((r) => setTimeout(r, 10));
+			} finally {
+				process.argv = originalArgv;
+			}
+
+			expect(mockSearch).not.toHaveBeenCalled();
+			expect(mockProcessExit).toHaveBeenCalledWith(1);
 		});
 	});
 

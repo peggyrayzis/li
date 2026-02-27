@@ -9,6 +9,7 @@ export { connections } from "./commands/connections.js";
 export { acceptInvite, listInvites } from "./commands/invites.js";
 export { listConversations, readConversation } from "./commands/messages.js";
 export { profile } from "./commands/profile.js";
+export { search } from "./commands/search.js";
 export { send } from "./commands/send.js";
 // Commands (for programmatic use)
 export { whoami } from "./commands/whoami.js";

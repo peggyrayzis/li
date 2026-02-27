@@ -16,6 +16,7 @@ import { listInvites } from "./commands/invites.js";
 import { listConversations, readConversation } from "./commands/messages.js";
 import { profile } from "./commands/profile.js";
 import { queryIds } from "./commands/query-ids.js";
+import { search } from "./commands/search.js";
 import { whoami } from "./commands/whoami.js";
 import { type BrowserSource, resolveCredentials } from "./lib/auth.js";
 
@@ -37,6 +38,7 @@ const COMMAND_NAMES = new Set([
 	"whoami",
 	"check",
 	"profile",
+	"search",
 	"connections",
 	"invites",
 	"messages",
@@ -326,6 +328,38 @@ program
 			const globalOpts = program.opts();
 			const credentials = await getCredentials(globalOpts);
 			const output = await profile(credentials, identifier, { json: options.json });
+			console.log(output);
+		} catch (error) {
+			handleError(error);
+		}
+	});
+
+// ============================================================================
+// search - Search profiles
+// ============================================================================
+program
+	.command("search")
+	.description("Search LinkedIn profiles")
+	.option("--query <text>", "Search query text")
+	.option("--json", "Output as JSON")
+	.option("-n, --count <number>", "Number of profiles to show", "20")
+	.option("--all", "Fetch all available profiles (capped at 50)")
+	.option("--fast", "Faster pacing with adaptive slowdown on rate limits")
+	.action(async (options) => {
+		try {
+			if (!options.query || options.query.trim() === "") {
+				throw new Error("Missing required option: --query <text>");
+			}
+			const globalOpts = program.opts();
+			const credentials = await getCredentials(globalOpts);
+			const output = await search(credentials, {
+				query: options.query,
+				json: options.json,
+				all: options.all,
+				count: Number.parseInt(options.count, 10),
+				fast: options.fast,
+				noProgress: globalOpts.progress === false,
+			});
 			console.log(output);
 		} catch (error) {
 			handleError(error);

@@ -74,6 +74,31 @@ li connections --of peggyrayzis   # View someone else's connections
 
 Note: `li connections --of ...` depends on LinkedIn search pagination behavior. LinkedIn may cap results (often around ~20) even when more pages are requested.
 
+### Search
+
+```bash
+li search --query "founder"               # Search profiles
+li search --query "founder" -n 10         # Return up to 10
+li search --query "founder" --all         # Request all pages (still capped at 50)
+li search --query "founder" --fast        # Faster fetch mode
+li search --query "founder" --json        # Machine-readable output
+```
+
+Supported flags: `--json`, `--fast`, `-n/--count`, `--all`.
+
+Temporary MVP limit: search results are hard-capped at 50 profiles. `--all` still stops at 50.
+
+MVP JSON output for `li search --query ... --json` uses these top-level keys:
+
+```json
+{
+  "query": "founder",
+  "limitApplied": 50,
+  "connections": [],
+  "paging": {}
+}
+```
+
 ### Invitations
 
 ```bash

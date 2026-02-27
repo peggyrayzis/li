@@ -33,8 +33,13 @@ export interface NormalizedConnection {
 	firstName: string;
 	lastName: string;
 	headline: string;
+	location: string;
 	profileUrl: string;
 	connectionDegree?: string;
+	mutualConnections?: {
+		count: number;
+		names?: string[];
+	};
 }
 
 /**
