@@ -1,5 +1,11 @@
 # @peggyrayzis/li
 
+## 0.1.3
+
+### Patch Changes
+
+- Add the new `search` command with parser fallback improvements, richer connection metadata, and smoke-test coverage.
+
 ## 0.1.2
 
 ### Patch Changes
