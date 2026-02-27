@@ -146,6 +146,9 @@ describe("search command", () => {
 		expect(parsed).toHaveProperty("connections");
 		expect(parsed).toHaveProperty("paging");
 		expect(Array.isArray(parsed.connections)).toBe(true);
+		if (parsed.connections.length > 0) {
+			expect(parsed.connections[0]).toHaveProperty("location");
+		}
 		expect(parsed.paging).toHaveProperty("count");
 		expect(parsed.paging).toHaveProperty("start");
 		expect(parsed.paging).toHaveProperty("total");

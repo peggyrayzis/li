@@ -155,6 +155,7 @@ describe("parser", () => {
 			expect(result.lastName).toBe("Smith");
 			expect(result.username).toBe("janesmith");
 			expect(result.headline).toBe("Engineering Lead at Acme");
+			expect(result.location).toBe("");
 			expect(result.urn).toBe("urn:li:fsd_profile:ABC123");
 			expect(result.profileUrl).toBe("https://www.linkedin.com/in/janesmith");
 		});
@@ -167,6 +168,7 @@ describe("parser", () => {
 			expect(result.lastName).toBe("Doe");
 			expect(result.username).toBe("johndoe");
 			expect(result.headline).toBe("CTO at StartupCo");
+			expect(result.location).toBe("");
 			expect(result.urn).toBe("urn:li:fsd_profile:DEF456");
 		});
 
@@ -193,6 +195,7 @@ describe("parser", () => {
 			expect(result).toHaveProperty("lastName");
 			expect(result).toHaveProperty("username");
 			expect(result).toHaveProperty("headline");
+			expect(result).toHaveProperty("location");
 			expect(result).toHaveProperty("urn");
 			expect(result).toHaveProperty("profileUrl");
 		});
@@ -201,7 +204,7 @@ describe("parser", () => {
 	describe("parseConnectionsFromSearchHtml", () => {
 		it("extracts miniProfile connections from HTML payload", () => {
 			const payload =
-				'<html><body>{"miniProfile":{"publicIdentifier":"janedoe","firstName":"Jane","lastName":"Doe","occupation":"Engineer"}}' +
+				'<html><body>{"miniProfile":{"publicIdentifier":"janedoe","firstName":"Jane","lastName":"Doe","occupation":"Engineer","locationName":"San Francisco Bay Area"}}' +
 				'{"miniProfile":{"publicIdentifier":"johndoe","firstName":"John","lastName":"Doe","occupation":"CTO"}}</body></html>';
 
 			const result = parseConnectionsFromSearchHtml(payload);
@@ -212,7 +215,9 @@ describe("parser", () => {
 				firstName: "Jane",
 				lastName: "Doe",
 				headline: "Engineer",
+				location: "San Francisco Bay Area",
 			});
+			expect(result[1]?.location).toBe("");
 		});
 	});
 
@@ -286,6 +291,7 @@ describe("parser", () => {
 				firstName: "Jamie",
 				lastName: "Lee",
 				headline: "Founder at Example",
+				location: "New York, New York, United States",
 				connectionDegree: "2nd",
 			});
 		});

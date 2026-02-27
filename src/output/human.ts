@@ -91,7 +91,7 @@ export function formatProfile(profile: NormalizedProfile): string {
 
 /**
  * Format a connection for display.
- * Shows name and headline in a compact format.
+ * Shows name, headline, and location in a compact format.
  */
 export function formatConnection(connection: NormalizedConnection): string {
 	const fullName = `${connection.firstName} ${connection.lastName}`;
@@ -106,6 +106,9 @@ export function formatConnection(connection: NormalizedConnection): string {
 	}
 	if (headlineParts.length > 0) {
 		parts.push(`   ${pc.dim(headlineParts.join(" - "))}`);
+	}
+	if (connection.location) {
+		parts.push(`   ${pc.dim(connection.location)}`);
 	}
 
 	return parts.join("\n");
