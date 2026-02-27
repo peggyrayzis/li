@@ -47,6 +47,11 @@ export function parseLinkedInUrl(input: string): ParsedLinkedInUrl | null {
 		return parseUrl(trimmed);
 	}
 
+	// Handle LinkedIn URLs pasted without a scheme (e.g. linkedin.com/in/user)
+	if (isLikelyLinkedInUrlWithoutScheme(trimmed)) {
+		return parseUrl(`https://${trimmed}`);
+	}
+
 	// Treat as plain username (for profile lookups)
 	return {
 		type: "profile",
@@ -104,7 +109,7 @@ function parseUrl(urlString: string): ParsedLinkedInUrl | null {
 
 	// Validate it's a LinkedIn domain
 	const hostname = url.hostname.toLowerCase();
-	if (!hostname.endsWith("linkedin.com") && hostname !== "linkedin.com") {
+	if (hostname !== "linkedin.com" && !hostname.endsWith(".linkedin.com")) {
 		return null;
 	}
 
@@ -144,6 +149,10 @@ function parseUrl(urlString: string): ParsedLinkedInUrl | null {
 	}
 
 	return null;
+}
+
+function isLikelyLinkedInUrlWithoutScheme(input: string): boolean {
+	return /^(?:[a-z0-9-]+\.)*linkedin\.com(?:\/|$)/i.test(input);
 }
 
 /**

@@ -18,11 +18,13 @@ import { parseLinkedInUrl } from "./url-parser.js";
 
 const DEBUG_RECIPIENT =
 	process.env.LI_DEBUG_RECIPIENT === "1" || process.env.LI_DEBUG_RECIPIENT === "true";
-const RECIPIENT_CACHE_PATH =
-	process.env.LI_RECIPIENT_CACHE_PATH ?? path.join(os.tmpdir(), "li-recipient-cache.json");
 
 function isProfileViewEnabled(): boolean {
 	return process.env.LI_ENABLE_PROFILEVIEW === "1" || process.env.LI_ENABLE_PROFILEVIEW === "true";
+}
+
+function getRecipientCachePath(): string {
+	return process.env.LI_RECIPIENT_CACHE_PATH ?? path.join(os.tmpdir(), "li-recipient-cache.json");
 }
 
 function debugRecipient(message: string): void {
@@ -35,8 +37,9 @@ function debugRecipient(message: string): void {
 type RecipientCache = Record<string, { urn: string; updatedAt: number }>;
 
 function loadRecipientCache(): RecipientCache {
+	const cachePath = getRecipientCachePath();
 	try {
-		const raw = readFileSync(RECIPIENT_CACHE_PATH, "utf8");
+		const raw = readFileSync(cachePath, "utf8");
 		const parsed = JSON.parse(raw) as RecipientCache;
 		if (!parsed || typeof parsed !== "object") {
 			return {};
@@ -48,21 +51,35 @@ function loadRecipientCache(): RecipientCache {
 }
 
 function saveRecipientCache(cache: RecipientCache): void {
+	const cachePath = getRecipientCachePath();
 	try {
-		mkdirSync(path.dirname(RECIPIENT_CACHE_PATH), { recursive: true });
-		writeFileSync(RECIPIENT_CACHE_PATH, JSON.stringify(cache), "utf8");
+		mkdirSync(path.dirname(cachePath), { recursive: true });
+		writeFileSync(cachePath, JSON.stringify(cache), "utf8");
 	} catch {
 		// Best-effort cache; ignore failures.
 	}
 }
 
+function isCacheableRecipientUrn(urn: string): boolean {
+	if (!urn.startsWith("urn:li:")) {
+		return false;
+	}
+	if (urn.startsWith("urn:li:member:")) {
+		return /^urn:li:member:\d+$/.test(urn);
+	}
+	if (urn.startsWith("urn:li:fsd_profile:")) {
+		return /^urn:li:fsd_profile:ACo[A-Za-z0-9_-]+$/.test(urn);
+	}
+	return false;
+}
+
 function warnIfRecipientChanged(key: string, currentUrn: string): void {
-	if (!key || !currentUrn) {
+	if (!key || !currentUrn || !isCacheableRecipientUrn(currentUrn)) {
 		return;
 	}
 	const cache = loadRecipientCache();
 	const previous = cache[key]?.urn ?? "";
-	if (previous && previous !== currentUrn) {
+	if (isCacheableRecipientUrn(previous) && previous !== currentUrn) {
 		process.stderr.write(
 			`[li][recipient] warning=profile_urn_changed key=${key} prev=${previous} next=${currentUrn}\n`,
 		);

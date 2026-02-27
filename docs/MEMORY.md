@@ -1,7 +1,12 @@
 # Memory Log
-Last Updated: 2026-02-25
+Last Updated: 2026-02-27
 
 Append-only log. Add entries; do not rewrite historical entries except typo fixes.
+
+## 2026-02-27
+- Correction: `profile` treated no-scheme LinkedIn URLs (for example `linkedin.com/in/<handle>`) as plain usernames, so recipient resolution requested invalid member identities and returned `Invalid request`.
+- Fix: updated URL parsing to normalize no-scheme LinkedIn URLs before route parsing, and added tests for no-scheme supported/unsupported paths.
+- Guardrail: recipient cache warnings now ignore synthetic/non-canonical URNs (for example fixture-style placeholders) and tests use isolated cache paths to prevent cross-run cache contamination.
 
 ## 2026-02-25
 - Correction: process guidance was fragmented across root markdown files and drifted over time.
