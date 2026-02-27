@@ -168,6 +168,14 @@ describe("output", () => {
 				expect(result).toContain("San Francisco Bay Area");
 			});
 
+			it("shows mutual connections when available", () => {
+				const result = formatConnection({
+					...connection,
+					mutualConnections: { count: 8 },
+				});
+				expect(result).toContain("8 mutual connections");
+			});
+
 			it("handles missing headline", () => {
 				const noHeadline: NormalizedConnection = {
 					...connection,

@@ -398,6 +398,7 @@ export function parseConnectionsFromSearchStream(
 ): NormalizedConnection[] {
 	const normalizedPayload = payload.replace(/\\u002F/g, "/").replace(/\\\//g, "/");
 	const marker = 'viewName":"people-search-result"';
+	const maxResultChunkLength = 26000;
 	const results: NormalizedConnection[] = [];
 	const seen = new Set<string>();
 	const enforceActionSlots = options.enforceActionSlots ?? true;
@@ -477,6 +478,12 @@ export function parseConnectionsFromSearchStream(
 			if (value.startsWith("•") || value.toLowerCase().includes("connections")) {
 				continue;
 			}
+			if (!/[A-Za-z]/.test(value) || value.length < 2) {
+				continue;
+			}
+			if (/^[a-z]/.test(value)) {
+				continue;
+			}
 			return candidate;
 		}
 		return undefined;
@@ -513,6 +520,21 @@ export function parseConnectionsFromSearchStream(
 
 	const normalizeDegree = (value: string): string => value.replace(/^•\s*/, "").trim();
 
+	const isLikelyPersonName = (value: string): boolean => {
+		const normalized = value.trim();
+		if (!normalized) {
+			return false;
+		}
+		if (normalized.length > 60 || normalized.includes("|")) {
+			return false;
+		}
+		const words = normalized.split(/\s+/).filter(Boolean);
+		if (words.length < 2 || words.length > 4) {
+			return false;
+		}
+		return words.every((word) => /^[A-Z][A-Za-z'’.-]*$/.test(word));
+	};
+
 	const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 	const extractProfileId = (chunk: string, username: string): string => {
@@ -544,7 +566,12 @@ export function parseConnectionsFromSearchStream(
 		if (start === -1) {
 			break;
 		}
-		const chunk = normalizedPayload.slice(start, start + 12000);
+		const nextStart = normalizedPayload.indexOf(marker, start + marker.length);
+		const chunkEnd =
+			nextStart === -1
+				? Math.min(normalizedPayload.length, start + maxResultChunkLength)
+				: Math.min(nextStart, start + maxResultChunkLength);
+		const chunk = normalizedPayload.slice(start, chunkEnd);
 		const urlMatch = chunk.match(/"url":"https:\/\/www\.linkedin\.com\/in\/([^"/]+)\//);
 		if (!urlMatch) {
 			index = start + marker.length;
@@ -607,6 +634,43 @@ export function parseConnectionsFromSearchStream(
 		);
 		const connectionDegree = degreeCandidate ? normalizeDegree(degreeCandidate.decoded) : "";
 
+		const socialProofChunk =
+			socialProofIndex !== -1
+				? chunk.slice(socialProofIndex, Math.min(chunk.length, socialProofIndex + 16000))
+				: "";
+		const socialProofTexts = socialProofChunk
+			? Array.from(
+					new Set(
+						collectTextCandidates(socialProofChunk)
+							.map((candidate) => candidate.decoded.trim())
+							.filter((value) => value && !value.startsWith("$") && value !== "$undefined"),
+					),
+				)
+			: [];
+		const mutualText = socialProofTexts.find((value) => /mutual connections?/i.test(value));
+		const mutualTextIndex = mutualText ? socialProofTexts.indexOf(mutualText) : -1;
+		const mutualNameWindow =
+			mutualTextIndex >= 0
+				? socialProofTexts.slice(Math.max(0, mutualTextIndex - 5), mutualTextIndex)
+				: [];
+		const mutualNames = mutualNameWindow.filter((value) => isLikelyPersonName(value)).slice(0, 5);
+		const otherMutualMatch = mutualText?.match(/(\d+)\s+other mutual connections?/i);
+		const directMutualMatch = mutualText?.match(/(\d+)\s+mutual connections?/i);
+		const mutualCount = otherMutualMatch?.[1]
+			? Number(otherMutualMatch[1]) + mutualNames.length
+			: directMutualMatch?.[1]
+				? Number(directMutualMatch[1])
+				: mutualText
+					? Math.max(1, mutualNames.length)
+					: 0;
+		const mutualConnections =
+			mutualCount > 0
+				? {
+						count: mutualCount,
+						...(mutualNames.length > 0 ? { names: mutualNames } : {}),
+					}
+				: undefined;
+
 		let headline = "";
 		let location = "";
 		const startIndex = nameIndex >= 0 ? nameIndex + 1 : 0;
@@ -619,6 +683,9 @@ export function parseConnectionsFromSearchStream(
 				continue;
 			}
 			if (value.startsWith("•") || /connections|followers|mutual/i.test(value)) {
+				continue;
+			}
+			if (/^[a-z]/.test(value) || value.endsWith("-")) {
 				continue;
 			}
 
@@ -647,6 +714,7 @@ export function parseConnectionsFromSearchStream(
 			location,
 			profileUrl: `${LINKEDIN_PROFILE_BASE_URL}${username}`,
 			...(connectionDegree ? { connectionDegree } : {}),
+			...(mutualConnections ? { mutualConnections } : {}),
 		});
 
 		index = start + marker.length;

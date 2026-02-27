@@ -36,6 +36,10 @@ export interface NormalizedConnection {
 	location: string;
 	profileUrl: string;
 	connectionDegree?: string;
+	mutualConnections?: {
+		count: number;
+		names?: string[];
+	};
 }
 
 /**

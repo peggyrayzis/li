@@ -296,6 +296,27 @@ describe("parser", () => {
 			});
 		});
 
+		it("extracts mutualConnections count and names from social proof", () => {
+			const payload = `"viewName":"people-search-result",
+"url":"https://www.linkedin.com/in/mikkelridley/",
+"profileId":"ACoAAAQYQyABXGx6qLAU3PbR4_XiWf303ouEeHs",
+"children":[["$","$L61","text-attr-0",{"children":["Mikkel R."]}]],
+"children":[["$","$L61","text-attr-0",{"children":[" • 2nd"]}]],
+"children":[["$","$L61","text-attr-0",{"children":["Software Engineer"]}]],
+"viewName":"search-result-social-proof-insight",
+"children":[["$","$L61","text-attr-0",{"children":["Jimmy L"]}]],
+"children":[["$","$L61","text-attr-0",{"children":["Chris Anderson"]}]],
+"children":[["$","$L61","text-attr-0",{"children":["13 other mutual connections"]}]]`;
+
+			const result = parseConnectionsFromSearchStream(payload);
+
+			expect(result).toHaveLength(1);
+			expect(result[0]?.mutualConnections).toEqual({
+				count: 15,
+				names: ["Jimmy L", "Chris Anderson"],
+			});
+		});
+
 		it("filters out results whose profileId is not present in actionSlots", () => {
 			const payload = `"actionSlots":{"ACoALLOW":"SearchResultsACoALLOW"},
 "viewName":"people-search-result",

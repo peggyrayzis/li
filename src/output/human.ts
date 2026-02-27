@@ -110,6 +110,9 @@ export function formatConnection(connection: NormalizedConnection): string {
 	if (connection.location) {
 		parts.push(`   ${pc.dim(connection.location)}`);
 	}
+	if (connection.mutualConnections?.count) {
+		parts.push(`   ${pc.dim(`${connection.mutualConnections.count} mutual connections`)}`);
+	}
 
 	return parts.join("\n");
 }
