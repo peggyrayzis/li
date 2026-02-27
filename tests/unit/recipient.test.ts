@@ -7,6 +7,9 @@
  * - Profile URNs (e.g., "urn:li:fsd_profile:ACoAABcd1234")
  */
 
+import { rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LinkedInClient } from "../../src/lib/client.js";
 import { resolveRecipient } from "../../src/lib/recipient.js";
@@ -28,10 +31,19 @@ describe("recipient", () => {
 		getCredentials: ReturnType<typeof vi.fn>;
 	};
 	let previousProfileViewEnv: string | undefined;
+	let previousRecipientCachePathEnv: string | undefined;
+	let recipientCachePath: string;
 
 	beforeEach(() => {
 		previousProfileViewEnv = process.env.LI_ENABLE_PROFILEVIEW;
+		previousRecipientCachePathEnv = process.env.LI_RECIPIENT_CACHE_PATH;
 		process.env.LI_ENABLE_PROFILEVIEW = "0";
+		recipientCachePath = path.join(
+			os.tmpdir(),
+			`li-recipient-test-cache-${process.pid}-${Date.now()}.json`,
+		);
+		process.env.LI_RECIPIENT_CACHE_PATH = recipientCachePath;
+		rmSync(recipientCachePath, { force: true });
 		mockClient = {
 			request: vi.fn(),
 			requestAbsolute: vi.fn(),
@@ -53,6 +65,12 @@ describe("recipient", () => {
 		} else {
 			process.env.LI_ENABLE_PROFILEVIEW = previousProfileViewEnv;
 		}
+		if (previousRecipientCachePathEnv === undefined) {
+			delete process.env.LI_RECIPIENT_CACHE_PATH;
+		} else {
+			process.env.LI_RECIPIENT_CACHE_PATH = previousRecipientCachePathEnv;
+		}
+		rmSync(recipientCachePath, { force: true });
 	});
 
 	describe("resolveRecipient", () => {
@@ -338,6 +356,30 @@ describe("recipient", () => {
 				});
 			});
 
+			it("resolves a profile URL without scheme", async () => {
+				mockClient.request.mockResolvedValueOnce({
+					json: () =>
+						Promise.resolve({
+							elements: [
+								{
+									entityUrn: "urn:li:fsd_profile:ACoAABcd1234",
+									publicIdentifier: "peggyrayzis",
+								},
+							],
+						}),
+				});
+
+				const result = await resolveRecipient(
+					mockClient as unknown as LinkedInClient,
+					"linkedin.com/in/peggyrayzis",
+				);
+
+				expect(result).toEqual({
+					username: "peggyrayzis",
+					urn: "urn:li:fsd_profile:ACoAABcd1234",
+				});
+			});
+
 			it("resolves a profile URL with trailing slash", async () => {
 				mockClient.request.mockResolvedValueOnce({
 					json: () =>
@@ -500,6 +542,76 @@ describe("recipient", () => {
 				).rejects.toThrow(
 					"Invalid input: https://twitter.com/peggyrayzis is not a valid LinkedIn profile",
 				);
+			});
+		});
+
+		describe("recipient cache warnings", () => {
+			it("skips warning when cached previous URN is a synthetic placeholder", async () => {
+				writeFileSync(
+					recipientCachePath,
+					JSON.stringify({
+						peggyrayzis: {
+							urn: "urn:li:fsd_profile:ABC123",
+							updatedAt: Date.now(),
+						},
+					}),
+					"utf8",
+				);
+				mockClient.request.mockResolvedValueOnce({
+					json: () =>
+						Promise.resolve({
+							elements: [
+								{
+									entityUrn: "urn:li:fsd_profile:ACoAABcd1234",
+									publicIdentifier: "peggyrayzis",
+								},
+							],
+						}),
+				});
+				const stderrSpy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+
+				await resolveRecipient(mockClient as unknown as LinkedInClient, "peggyrayzis");
+
+				expect(
+					stderrSpy.mock.calls.some((call) =>
+						String(call[0]).includes("warning=profile_urn_changed"),
+					),
+				).toBe(false);
+				stderrSpy.mockRestore();
+			});
+
+			it("emits warning when cached previous URN is valid and changes", async () => {
+				writeFileSync(
+					recipientCachePath,
+					JSON.stringify({
+						peggyrayzis: {
+							urn: "urn:li:fsd_profile:ACoAABcd1111",
+							updatedAt: Date.now(),
+						},
+					}),
+					"utf8",
+				);
+				mockClient.request.mockResolvedValueOnce({
+					json: () =>
+						Promise.resolve({
+							elements: [
+								{
+									entityUrn: "urn:li:fsd_profile:ACoAABcd2222",
+									publicIdentifier: "peggyrayzis",
+								},
+							],
+						}),
+				});
+				const stderrSpy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+
+				await resolveRecipient(mockClient as unknown as LinkedInClient, "peggyrayzis");
+
+				expect(
+					stderrSpy.mock.calls.some((call) =>
+						String(call[0]).includes("warning=profile_urn_changed"),
+					),
+				).toBe(true);
+				stderrSpy.mockRestore();
 			});
 		});
 

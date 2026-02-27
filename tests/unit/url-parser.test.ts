@@ -55,6 +55,15 @@ describe("url-parser", () => {
 				});
 			});
 
+			it("handles linkedin.com profile URLs without scheme", () => {
+				const result = parseLinkedInUrl("linkedin.com/in/peggyrayzis");
+
+				expect(result).toEqual({
+					type: "profile",
+					identifier: "peggyrayzis",
+				});
+			});
+
 			it("handles mobile linkedin URLs (m.linkedin.com)", () => {
 				const result = parseLinkedInUrl("https://m.linkedin.com/in/peggyrayzis");
 
@@ -337,8 +346,19 @@ describe("url-parser", () => {
 				expect(result).toBeNull();
 			});
 
+			it("returns null for domains that only suffix-match linkedin.com", () => {
+				expect(parseLinkedInUrl("https://notlinkedin.com/in/peggyrayzis")).toBeNull();
+				expect(parseLinkedInUrl("https://evil-linkedin.com/in/peggyrayzis")).toBeNull();
+			});
+
 			it("returns null for LinkedIn URL with unsupported path", () => {
 				const result = parseLinkedInUrl("https://www.linkedin.com/learning");
+
+				expect(result).toBeNull();
+			});
+
+			it("returns null for no-scheme LinkedIn URL with unsupported path", () => {
+				const result = parseLinkedInUrl("linkedin.com/learning");
 
 				expect(result).toBeNull();
 			});
