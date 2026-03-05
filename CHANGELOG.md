@@ -1,5 +1,13 @@
 # @peggyrayzis/li
 
+## 0.1.3
+
+### Patch Changes
+
+- Add the new `search` command with parser fallback improvements, richer connection metadata, and smoke-test coverage.
+- b4ab4c3: Add `scripts/cut-release-pr.sh` to standardize release PR creation from synced `main`.
+- 5bb0e32: Fix `profile` recipient parsing for no-scheme LinkedIn URLs and suppress cache warnings for synthetic placeholder URNs.
+
 ## 0.1.2
 
 ### Patch Changes
