@@ -11,6 +11,7 @@ import type { LinkedInCredentials } from "../lib/auth.js";
 import { LinkedInApiError, LinkedInClient } from "../lib/client.js";
 import { LINKEDIN_PROFILE_BASE_URL, LINKEDIN_PROFILE_DECORATION_ID } from "../lib/constants.js";
 import endpoints from "../lib/endpoints.json" with { type: "json" };
+import { buildLiTrackHeader } from "../lib/li-track.js";
 import { type MeResponse, parseMeResponse } from "../lib/me.js";
 import { parseProfile } from "../lib/parser.js";
 import { resolveRecipient } from "../lib/recipient.js";
@@ -71,14 +72,25 @@ export async function profile(
 		throw new Error("Invalid profile identifier. Provide a username, profile URL, or URN.");
 	}
 
-	const resolved = await resolveRecipient(client, identifier);
+	// Add browser-context headers to avoid LinkedIn anti-automation enforcement
+	// on the heavily-monitored /identity/dash/profiles endpoint.
+	const slug = parsed.identifier.startsWith("urn:li:") ? "" : parsed.identifier;
+	const browserHeaders: Record<string, string> = {
+		Origin: "https://www.linkedin.com",
+		Referer: slug
+			? `https://www.linkedin.com/in/${encodeURIComponent(slug)}/`
+			: "https://www.linkedin.com/feed/",
+		"X-Li-Track": buildLiTrackHeader(),
+	};
+
+	const resolved = await resolveRecipient(client, identifier, { headers: browserHeaders });
 	const encodedUrn = encodeURIComponent(resolved.urn);
 	const endpoint = `/identity/dash/profiles/${encodedUrn}?decorationId=${LINKEDIN_PROFILE_DECORATION_ID}`;
 
 	// Fetch the profile from the dash endpoint
 	let rawData: Record<string, unknown>;
 	try {
-		const response = await client.request(endpoint);
+		const response = await client.request(endpoint, { headers: browserHeaders });
 		rawData = (await response.json()) as Record<string, unknown>;
 	} catch (error) {
 		if (error instanceof LinkedInApiError && error.status === 403) {
@@ -111,7 +123,7 @@ export async function profile(
 				"{username}",
 				encodeURIComponent(resolved.username),
 			);
-			const fallbackResponse = await client.request(profileEndpoint);
+			const fallbackResponse = await client.request(profileEndpoint, { headers: browserHeaders });
 			const fallbackData = (await fallbackResponse.json()) as Record<string, unknown>;
 			const fallbackProfile = parseProfile(fallbackData);
 			normalizedProfile = {

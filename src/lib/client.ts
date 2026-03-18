@@ -248,7 +248,7 @@ export class LinkedInClient {
 					`status=${response.status}`,
 					`method=${options.method ?? "GET"}`,
 					`url=${url}`,
-					`location=${location ? "yes" : "no"}`,
+					`location=${location ?? "none"}`,
 					`setCookie=${setCookie ? "yes" : "no"}`,
 					`liAtDelete=${hasLiAtDelete}`,
 					`jsessionDelete=${hasJsessionDelete}`,

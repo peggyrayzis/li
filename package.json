@@ -55,15 +55,10 @@
     "vitest": "^4.0.18"
   },
   "dependencies": {
-    "@steipete/sweet-cookie": "^0.1.0",
+    "@steipete/sweet-cookie": "^0.2.0",
     "commander": "^14.0.3",
     "dotenv": "^17.2.3",
     "json5": "^2.2.3",
     "picocolors": "^1.1.1"
-  },
-  "pnpm": {
-    "patchedDependencies": {
-      "@steipete/sweet-cookie@0.1.0": "patches/@steipete__sweet-cookie@0.1.0.patch"
-    }
   }
 }
