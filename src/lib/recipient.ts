@@ -157,6 +157,7 @@ interface MeResponse {
 export async function resolveRecipient(
 	client: LinkedInClient,
 	identifier: string,
+	options?: { headers?: Record<string, string> },
 ): Promise<ResolvedRecipient> {
 	const trimmed = identifier.trim();
 
@@ -178,10 +179,11 @@ export async function resolveRecipient(
 		throw new Error(`Invalid input: cannot resolve ${parsed.type} URL to a profile`);
 	}
 
+	const extraHeaders = options?.headers;
 	// If it's already a URN, look up the profile to get the username
 	const resolved = parsed.identifier.startsWith("urn:li:")
-		? await lookupProfileByUrn(client, parsed.identifier)
-		: await lookupProfileByUsername(client, parsed.identifier);
+		? await lookupProfileByUrn(client, parsed.identifier, extraHeaders)
+		: await lookupProfileByUsername(client, parsed.identifier, extraHeaders);
 
 	warnIfRecipientChanged(resolved.username || parsed.identifier, resolved.urn);
 	return resolved;
@@ -190,13 +192,17 @@ export async function resolveRecipient(
 /**
  * Look up a profile by URN to get both URN and username.
  */
-async function lookupProfileByUrn(client: LinkedInClient, urn: string): Promise<ResolvedRecipient> {
+async function lookupProfileByUrn(
+	client: LinkedInClient,
+	urn: string,
+	extraHeaders?: Record<string, string>,
+): Promise<ResolvedRecipient> {
 	debugRecipient(`lookupProfileByUrn urn=${urn}`);
 	let forbiddenLookup = false;
 	try {
 		const response = await client.request(
 			`/identity/dash/profiles?q=memberIdentity&memberIdentity=${encodeURIComponent(urn)}`,
-			{ method: "GET" },
+			{ method: "GET", headers: extraHeaders },
 		);
 		const data = (await response.json()) as ProfileLookupResponse;
 		const resolved = extractProfileFromLookup(data, "");
@@ -226,6 +232,7 @@ async function lookupProfileByUrn(client: LinkedInClient, urn: string): Promise<
 async function lookupProfileByUsername(
 	client: LinkedInClient,
 	username: string,
+	extraHeaders?: Record<string, string>,
 ): Promise<ResolvedRecipient> {
 	debugRecipient(`lookupProfileByUsername username=${username}`);
 	let data: ProfileLookupResponse = {};
@@ -233,7 +240,7 @@ async function lookupProfileByUsername(
 	try {
 		const response = await client.request(
 			`/identity/dash/profiles?q=memberIdentity&memberIdentity=${encodeURIComponent(username)}`,
-			{ method: "GET" },
+			{ method: "GET", headers: extraHeaders },
 		);
 		data = (await response.json()) as ProfileLookupResponse;
 		const resolved = extractProfileFromLookup(data, username);
