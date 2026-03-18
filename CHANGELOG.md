@@ -1,5 +1,11 @@
 # @peggyrayzis/li
 
+## 0.1.4
+
+### Patch Changes
+
+- Upgrade `@steipete/sweet-cookie` to `0.2.0`, remove the in-repo patch, and add browser-context headers to `profile` requests to reduce LinkedIn 403 responses.
+
 ## 0.1.3
 
 ### Patch Changes
