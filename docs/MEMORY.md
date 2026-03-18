@@ -1,7 +1,12 @@
 # Memory Log
-Last Updated: 2026-02-27
+Last Updated: 2026-03-17
 
 Append-only log. Add entries; do not rewrite historical entries except typo fixes.
+
+## 2026-03-17
+- Correction: the repository still carried a local `@steipete/sweet-cookie@0.1.0` patch after upstream `v0.2.0` shipped the same Chrome macOS `timeoutMs` and Node 22 Chromium sqlite fixes.
+- Fix: upgraded to `@steipete/sweet-cookie@0.2.0` and removed the `pnpm` patch wiring/file after verifying Chrome-cookie smoke coverage on macOS.
+- Guardrail: keep smoke-checking browser auth on macOS after dependency upgrades; if Chrome Keychain access still times out, treat it as a local permission/runtime issue instead of reintroducing the patch.
 
 ## 2026-02-27
 - Correction: `profile` treated no-scheme LinkedIn URLs (for example `linkedin.com/in/<handle>`) as plain usernames, so recipient resolution requested invalid member identities and returned `Invalid request`.

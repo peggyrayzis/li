@@ -105,7 +105,7 @@ async function extractBrowserCookies(
 		debugAuth(
 			`cookie-result sources=${browserList} cookies=${result.cookies.length} li_at=${Boolean(
 				liAt,
-			)} jsessionid=${Boolean(jsessionId)} warnings=${result.warnings?.length ?? 0}`,
+			)} jsessionid=${Boolean(jsessionId)} warnings=${warnings.length}`,
 		);
 
 		if (jsessionId) {
